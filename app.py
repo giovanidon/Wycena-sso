@@ -74,7 +74,7 @@ if st.button("Generuj Wycenę Robocizny") and uploaded_files and api_key:
 
             # Wywołanie najnowszego, zalecanego modelu Gemini
             odpowiedz = client.models.generate_content(
-                model='gemini-2.5-flash',  # Poprawiono na aktualną, dostępną wersję produkcyjną
+                model='gemini-3.6-flash',  # Poprawiono na aktualną, dostępną wersję produkcyjną
                 contents=zawartosc
             )
             
