@@ -77,7 +77,7 @@ if st.button("Generuj Wycenę Robocizny") and uploaded_files and api_key:
 
             # Wywołanie modelu
             odpowiedz = client.models.generate_content(
-                model='gemini-1.5-pro',
+                model='gemini-2.5-pro',
                 contents=zawartosc
             )
             
