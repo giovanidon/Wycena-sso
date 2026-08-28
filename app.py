@@ -1,5 +1,5 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
 import tempfile
 import os
 
@@ -9,8 +9,6 @@ st.title("🏗️ Kalkulator Robocizny SSO (Stan Surowy Otwarty)")
 
 # 1. Konfiguracja API
 api_key = st.text_input("Wprowadź swój klucz API Gemini:", type="password")
-if api_key:
-    genai.configure(api_key=api_key)
 
 # 2. Twój Cennik Robocizny (Pasek boczny)
 with st.sidebar:
@@ -22,33 +20,46 @@ with st.sidebar:
     cena_dach = st.number_input("Więźba i pokrycie (za 1 m2)", value=150)
     marza = st.slider("Narzut / Marża / Ryzyko (%)", 0, 50, 15)
 
-# 3. Wgrywanie projektu (PDF)
-uploaded_file = st.file_uploader("Wgraj projekt konstrukcyjny / architektoniczny (PDF)", type=['pdf'])
+# 3. Wgrywanie projektów (WIELE PLIKÓW PDF) - Zmiana tutaj!
+uploaded_files = st.file_uploader(
+    "Wgraj projekty konstrukcyjne (PDF) - możesz zaznaczyć kilka plików", 
+    type=['pdf'], 
+    accept_multiple_files=True
+)
 
-if st.button("Generuj Wycenę Robocizny") and uploaded_file and api_key:
-    with st.spinner("Sztuczna Inteligencja analizuje projekt konstrukcyjny... To może potrwać kilkanaście sekund."):
+if st.button("Generuj Wycenę Robocizny") and uploaded_files and api_key:
+    with st.spinner("Sztuczna Inteligencja analizuje projekty... To może potrwać dłuższą chwilę."):
         try:
-            # Zapisanie pliku PDF do pliku tymczasowego (wymagane przez API)
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                tmp_file.write(uploaded_file.getvalue())
-                tmp_file_path = tmp_file.name
+            client = genai.Client(api_key=api_key)
+            
+            pliki_do_ai = []
+            sciezki_tymczasowe = []
+            
+            # Przetwarzanie każdego wgranego pliku
+            for file in uploaded_files:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                    tmp_file.write(file.getvalue())
+                    tmp_file_path = tmp_file.name
+                    sciezki_tymczasowe.append(tmp_file_path)
 
-            # Przesłanie pliku do Google Gemini
-            pdf_plik = genai.upload_file(tmp_file_path, mime_type="application/pdf")
+                # Przesłanie pliku do Google Gemini
+                pdf_plik = client.files.upload(file=tmp_file_path)
+                pliki_do_ai.append(pdf_plik)
             
             # Główna instrukcja (System Prompt) dla AI
             instrukcja = f"""
             Jesteś doświadczonym kosztorysantem budowlanym i inżynierem. 
-            Przeanalizuj załączony projekt budowlany (PDF). Interesuje nas WYŁĄCZNIE Stan Surowy Otwarty (SSO).
+            Przeanalizuj ZAŁĄCZONE PROJEKTY BUDOWLANE (PDF). Traktuj je jako jedną całość inwestycji. 
+            Interesuje nas WYŁĄCZNIE Stan Surowy Otwarty (SSO).
             
-            Twoim zadaniem jest znalezienie w projekcie (w opisach, rzutach lub tabelach) następujących ilości:
+            Twoim zadaniem jest znalezienie w projektach (w opisach, rzutach lub tabelach) następujących ilości zsumowanych z wszystkich plików:
             - Ton stali zbrojeniowej (szukaj zestawień stali)
             - Kubatury betonu (m3) na fundamenty, wieńce, słupy i stropy
             - Powierzchni ścian nośnych i działowych (m2)
             - Powierzchni szalunków (m2)
             - Powierzchni dachu (m2)
             
-            Następnie przemnóż znalezione ilości przez poniższe stawki robocizny wykonawcy:
+            Następnie przemnóż zsumowane ilości przez poniższe stawki robocizny wykonawcy:
             - Zbrojenie: {cena_stal} PLN / t
             - Betonowanie: {cena_beton} PLN / m3
             - Murowanie: {cena_mur} PLN / m2
@@ -57,23 +68,31 @@ if st.button("Generuj Wycenę Robocizny") and uploaded_file and api_key:
             
             Dodaj do całości {marza}% marży.
             
-            Przygotuj profesjonalny raport dla wykonawcy. Wypunktuj, gdzie w projekcie znalazłeś dane (aby wykonawca mógł to zweryfikować), przedstaw wyliczenia i podaj końcową cenę netto za robociznę SSO. 
-            Jeśli jakichś danych brakuje w PDF (np. nie ma zestawienia stali), oszacuj je na podstawie powierzchni i norm budowlanych, ale WYRAŹNIE zaznacz, że to szacunek.
+            Przygotuj profesjonalny raport dla wykonawcy. Wypunktuj, gdzie w projektach znalazłeś dane, przedstaw wyliczenia i podaj końcową cenę netto za robociznę SSO. 
+            Jeśli jakichś danych brakuje, oszacuj je na podstawie powierzchni i norm budowlanych, ale WYRAŹNIE zaznacz, że to szacunek.
             """
 
+            # Połączenie wszystkich plików PDF oraz instrukcji tekstowej
+            zawartosc = pliki_do_ai + [instrukcja]
+
             # Wywołanie modelu
-            model = genai.GenerativeModel('gemini-1.5-pro')
-            odpowiedz = model.generate_content([pdf_plik, instrukcja])
+            odpowiedz = client.models.generate_content(
+                model='gemini-1.5-pro',
+                contents=zawartosc
+            )
             
             # Wyświetlenie wyniku
             st.success("Analiza zakończona sukcesem!")
             st.markdown("### Raport z Wyceny Robocizny SSO")
             st.write(odpowiedz.text)
             
-            # Sprzątanie
-            os.remove(tmp_file_path)
+            # Sprzątanie - usunięcie wszystkich plików tymczasowych
+            for sciezka in sciezki_tymczasowe:
+                os.remove(sciezka)
 
         except Exception as e:
             st.error(f"Wystąpił błąd podczas analizy: {e}")
 elif not api_key:
     st.warning("Podaj klucz API, aby móc wygenerować wycenę.")
+elif not uploaded_files:
+    st.warning("Wgraj co najmniej jeden plik PDF z projektem.")
