@@ -1,7 +1,6 @@
 import streamlit as st
 from google import genai
-import tempfile
-import os
+from google.genai import types  # <-- Potrzebne do przesłania bajtów
 
 # Konfiguracja strony
 st.set_page_config(page_title="Wycena SSO - AI", layout="wide")
@@ -20,7 +19,7 @@ with st.sidebar:
     cena_dach = st.number_input("Więźba i pokrycie (za 1 m2)", value=150)
     marza = st.slider("Narzut / Marża / Ryzyko (%)", 0, 50, 15)
 
-# 3. Wgrywanie projektów (WIELE PLIKÓW PDF) - Zmiana tutaj!
+# 3. Wgrywanie projektów (WIELE PLIKÓW PDF)
 uploaded_files = st.file_uploader(
     "Wgraj projekty konstrukcyjne (PDF) - możesz zaznaczyć kilka plików", 
     type=['pdf'], 
@@ -30,21 +29,19 @@ uploaded_files = st.file_uploader(
 if st.button("Generuj Wycenę Robocizny") and uploaded_files and api_key:
     with st.spinner("Sztuczna Inteligencja analizuje projekty... To może potrwać dłuższą chwilę."):
         try:
+            # Inicjalizacja oficjalnego klienta google-genai
             client = genai.Client(api_key=api_key)
             
-            pliki_do_ai = []
-            sciezki_tymczasowe = []
+            # Lista, do której przekażemy dokumenty w postaci obiektów Part oraz instrukcję
+            zawartosc = []
             
-            # Przetwarzanie każdego wgranego pliku
+            # Konwersja każdego wgranego pliku na bezpieczny strumień bajtów w pamięci
             for file in uploaded_files:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                    tmp_file.write(file.getvalue())
-                    tmp_file_path = tmp_file.name
-                    sciezki_tymczasowe.append(tmp_file_path)
-
-                # Przesłanie pliku do Google Gemini
-                pdf_plik = client.files.upload(file=tmp_file_path)
-                pliki_do_ai.append(pdf_plik)
+                pdf_part = types.Part.from_bytes(
+                    data=file.getvalue(),
+                    mime_type="application/pdf"
+                )
+                zawartosc.append(pdf_part)
             
             # Główna instrukcja (System Prompt) dla AI
             instrukcja = f"""
@@ -72,12 +69,12 @@ if st.button("Generuj Wycenę Robocizny") and uploaded_files and api_key:
             Jeśli jakichś danych brakuje, oszacuj je na podstawie powierzchni i norm budowlanych, ale WYRAŹNIE zaznacz, że to szacunek.
             """
 
-            # Połączenie wszystkich plików PDF oraz instrukcji tekstowej
-            zawartosc = pliki_do_ai + [instrukcja]
+            # Dołączenie instrukcji tekstowej na koniec listy zawartości
+            zawartosc.append(instrukcja)
 
-            # Wywołanie modelu
+            # Wywołanie najnowszego, zalecanego modelu Gemini
             odpowiedz = client.models.generate_content(
-                model='gemini-3.6-flash',
+                model='gemini-2.5-flash',  # Poprawiono na aktualną, dostępną wersję produkcyjną
                 contents=zawartosc
             )
             
@@ -85,13 +82,10 @@ if st.button("Generuj Wycenę Robocizny") and uploaded_files and api_key:
             st.success("Analiza zakończona sukcesem!")
             st.markdown("### Raport z Wyceny Robocizny SSO")
             st.write(odpowiedz.text)
-            
-            # Sprzątanie - usunięcie wszystkich plików tymczasowych
-            for sciezka in sciezki_tymczasowe:
-                os.remove(sciezka)
 
         except Exception as e:
             st.error(f"Wystąpił błąd podczas analizy: {e}")
+            
 elif not api_key:
     st.warning("Podaj klucz API, aby móc wygenerować wycenę.")
 elif not uploaded_files:
