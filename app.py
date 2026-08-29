@@ -13,9 +13,10 @@ st.title("🏗️ Kalkulator Robocizny i Materiałów SSO (Eksport PDF)")
 @st.cache_resource
 def pobierz_czcionke():
     """Pobiera czcionkę obsługującą polskie znaki do generowania PDF."""
-    font_path = "DejaVuSans.ttf"
+    font_path = "DejaVuSans_v2.ttf" # Zmieniona nazwa, by wymusić świeże pobranie
     if not os.path.exists(font_path):
-        url = "https://github.com/matomo-org/travis-scripts/raw/master/fonts/DejaVuSans.ttf"
+        # Nowy, niezawodny link bezpośrednio od twórców czcionki
+        url = "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/master/ttf/DejaVuSans.ttf"
         r = requests.get(url, allow_redirects=True)
         open(font_path, 'wb').write(r.content)
     return font_path
@@ -175,4 +176,3 @@ elif not api_key:
     st.warning("Podaj klucz API, aby móc wygenerować wycenę.")
 elif not uploaded_files:
     st.warning("Wgraj co najmniej jeden plik PDF z projektem.")
-    
