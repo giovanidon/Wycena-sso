@@ -5,7 +5,7 @@ import os
 
 # Konfiguracja strony
 st.set_page_config(page_title="Wycena SSO - AI", layout="wide")
-st.title("🏗️ Kalkulator Robocizny SSO (Stan Surowy Otwarty)")
+st.title("🏗️ Kalkulator Robocizny i Materiałów SSO")
 
 # 1. Konfiguracja API (Pobieranie z bezpiecznego sejfu)
 if "GEMINI_API_KEY" in st.secrets:
@@ -33,7 +33,7 @@ mnozniki_woj = {
     "Lubelskie": 0.90
 }
 
-# 2. Cennik Robocizny, Lokalizacja i Harmonogram (Pasek boczny)
+# 2. Pasek boczny: Cenniki, Lokalizacja i Harmonogram
 with st.sidebar:
     st.header("Lokalizacja Inwestycji")
     wybrane_woj = st.selectbox("Wybierz województwo", list(mnozniki_woj.keys()))
@@ -41,14 +41,22 @@ with st.sidebar:
     st.info(f"Mnożnik regionalny: **{mnoznik}x** (względem stawek bazowych)")
 
     st.markdown("---")
-    st.header("Bazowy Cennik Robocizny (PLN netto)")
-    cena_stal = st.number_input("Zbrojenie (za 1 tonę)", value=1500)
-    cena_beton = st.number_input("Betonowanie / Wylewanie (za 1 m3)", value=120)
-    cena_mur = st.number_input("Murowanie ścian (za 1 m2)", value=80)
-    cena_szalunki = st.number_input("Szalowanie (za 1 m2)", value=70)
-    cena_dach = st.number_input("Więźba i pokrycie (za 1 m2)", value=150)
-    marza = st.slider("Narzut / Marża / Ryzyko (%)", 0, 50, 15)
+    st.header("1. Cennik Robocizny (PLN netto)")
+    cena_stal = st.number_input("Robocizna: Zbrojenie (za 1 tonę)", value=1500)
+    cena_beton = st.number_input("Robocizna: Wylewanie (za 1 m3)", value=120)
+    cena_mur = st.number_input("Robocizna: Murowanie (za 1 m2)", value=80)
+    cena_szalunki = st.number_input("Robocizna: Szalowanie (za 1 m2)", value=70)
+    cena_dach = st.number_input("Robocizna: Więźba i pokrycie (za 1 m2)", value=150)
+    marza = st.slider("Narzut / Marża wykonawcy (%)", 0, 50, 15)
     
+    st.markdown("---")
+    st.header("2. Cennik Materiałów (PLN netto)")
+    mat_stal = st.number_input("Materiał: Stal zbrojeniowa (za 1 tonę)", value=3500)
+    mat_beton = st.number_input("Materiał: Beton (za 1 m3)", value=350)
+    mat_mur = st.number_input("Materiał: Bloczki + zaprawa (za 1 m2)", value=120)
+    mat_szalunki = st.number_input("Materiał: Drewno/sklejka (za 1 m2)", value=50)
+    mat_dach = st.number_input("Materiał: Więźba + dachówka/blacha (za 1 m2)", value=250)
+
     st.markdown("---")
     st.header("Planowanie Czasu")
     ekipa = st.number_input("Liczba pracowników na budowie", min_value=1, value=3)
@@ -60,74 +68,69 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True
 )
 
-if st.button("Generuj Wycenę Robocizny") and uploaded_files and api_key:
-    with st.spinner("Sztuczna Inteligencja analizuje projekty... To może potrwać dłuższą chwilę."):
+if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
+    with st.spinner("Sztuczna Inteligencja analizuje projekty i wylicza koszty..."):
         try:
             client = genai.Client(api_key=api_key)
             pliki_do_ai = []
             sciezki_tymczasowe = []
             
-            # Przetwarzanie każdego wgranego pliku
             for file in uploaded_files:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
                     tmp_file.write(file.getvalue())
                     tmp_file_path = tmp_file.name
                     sciezki_tymczasowe.append(tmp_file_path)
 
-                # Przesłanie pliku do AI
                 pdf_plik = client.files.upload(file=tmp_file_path)
                 pliki_do_ai.append(pdf_plik)
             
-            # Instrukcja główna dla modelu
             instrukcja = f"""
-            Jesteś doświadczonym kosztorysantem budowlanym i inżynierem. 
-            Przeanalizuj ZAŁĄCZONE PROJEKTY BUDOWLANE (PDF). Traktuj je jako jedną całość inwestycji. 
-            Interesuje nas WYŁĄCZNIE Stan Surowy Otwarty (SSO).
+            Jesteś doświadczonym kosztorysantem budowlanym. 
+            Przeanalizuj ZAŁĄCZONE PROJEKTY BUDOWLANE (PDF). Traktuj je jako jedną inwestycję w Stanie Surowym Otwartym (SSO).
+            Znajdź zapotrzebowanie na: tony stali, kubaturę betonu (m3), powierzchnię ścian (m2), powierzchnię szalunków (m2) i powierzchnię dachu (m2).
+            Inwestycja znajduje się w województwie {wybrane_woj} (mnożnik regionalny: {mnoznik}).
             
-            Zadanie 1 - Ilości i Koszty:
-            Znajdź w projektach: tony stali zbrojeniowej, kubaturę betonu (m3), powierzchnię ścian (m2), powierzchnię szalunków (m2) i powierzchnię dachu (m2).
-            Przemnóż je przez stawki bazowe: Zbrojenie: {cena_stal} PLN/t, Betonowanie: {cena_beton} PLN/m3, Murowanie: {cena_mur} PLN/m2, Szalowanie: {cena_szalunki} PLN/m2, Dach: {cena_dach} PLN/m2.
-            UWAGA REGIONALNA: Inwestycja znajduje się w województwie {wybrane_woj}. Przemnóż wszystkie wyliczone koszty robocizny przez mnożnik regionalny wynoszący {mnoznik}.
-            Na sam koniec, do ostatecznej kwoty po uwzględnieniu mnożnika regionalnego, dodaj {marza}% marży wykonawcy.
+            Zadanie 1 - Wycena ROBOCIZNY:
+            Przemnóż ilości przez stawki bazowe robocizny: Zbrojenie: {cena_stal} PLN/t, Betonowanie: {cena_beton} PLN/m3, Murowanie: {cena_mur} PLN/m2, Szalowanie: {cena_szalunki} PLN/m2, Dach: {cena_dach} PLN/m2.
+            Przemnóż wynik przez mnożnik regionalny ({mnoznik}), a następnie dodaj {marza}% marży wykonawcy.
             
-            Zadanie 2 - Harmonogram Prac:
-            Na podstawie znalezionych ilości, oszacuj łączną liczbę roboczogodzin (R-g) potrzebnych na wykonanie SSO, bazując na standardowych normach budowlanych (KNR). 
-            Na budowie będzie pracować stała ekipa licząca {ekipa} osób (przyjmij 8-godzinny dzień pracy).
-            Przelicz łączną liczbę roboczogodzin na szacowaną liczbę dni roboczych potrzebnych na realizację całej inwestycji przez tę konkretną ekipę.
+            Zadanie 2 - Wycena MATERIAŁÓW:
+            Przemnóż ilości przez stawki bazowe materiałów: Stal: {mat_stal} PLN/t, Beton: {mat_beton} PLN/m3, Ściany: {mat_mur} PLN/m2, Szalunki: {mat_szalunki} PLN/m2, Dach: {mat_dach} PLN/m2.
+            Przemnóż koszty materiałów przez mnożnik regionalny ({mnoznik}). Podaj wyniki wyraźnie oddzielone od robocizny.
             
-            Zadanie 3 - Szczegółowy Harmonogram Płatności (Transze):
-            Rozbij całkowitą kwotę wyceny na bardzo szczegółowe transze płatności, adekwatnie do etapów budowy. Podziel etapy bardzo drobno, zgodnie z poniższymi wytycznymi:
-            - Fundamenty tradycyjne: 1. Ławy fundamentowe, 2. Ściany fundamentowe, 3. Kanalizacja podposadzkowa, zasypanie fundamentów i wylanie chudego betonu.
-            - Płyta fundamentowa (jeśli dotyczy): 1. Szalowanie, 2. Zbrojenie płyty, 3. Wylanie betonu.
-            - Stropy: 1. Szalowanie stropu, 2. Zbrojenie stropu, 3. Wylanie betonu.
-            - Ściany i dach również podziel na logiczne, mniejsze etapy (np. mury parteru, mury piętra/poddasza, więźba dachowa, pokrycie dachu).
-            Przypisz do każdej transzy procentowy udział w całkowitej kwocie oraz dokładnie wyliczoną kwotę netto.
+            Zadanie 3 - Harmonogram Prac:
+            Oszacuj liczbę roboczogodzin (R-g) na podstawie norm KNR i przelicz je na dni robocze dla ekipy liczącej {ekipa} osób (8h pracy dziennie).
             
-            Przygotuj profesjonalny raport dla wykonawcy z podziałem na: 
-            1. Sekcję wyceny
-            2. Sekcję szacunkowego harmonogramu prac
-            3. Sekcję szczegółowego harmonogramu płatności (drobne transze). 
-            Jeśli jakichś danych brakuje, oszacuj je i wyraźnie zaznacz, że to szacunek.
+            Zadanie 4 - Szczegółowy Harmonogram Płatności (Transze):
+            Rozbij całkowitą kwotę wyceny na bardzo szczegółowe transze. Podziel etapy:
+            - Fundamenty: 1. Ławy, 2. Ściany, 3. Kanalizacja podposadzkowa, zasypanie, wylanie chudego betonu.
+            - Płyta fundamentowa: 1. Szalowanie, 2. Zbrojenie, 3. Wylanie.
+            - Stropy: 1. Szalowanie, 2. Zbrojenie, 3. Wylanie.
+            - Ściany i dach podziel logicznie na etapy (mury parteru, więźba, pokrycie).
+            W każdej transzy rozbij wyraźnie, jaka kwota to ZALICZKA NA MATERIAŁ, a jaka to ZAPŁATA ZA ROBOCIZNĘ po etapie.
+            
+            Format raportu:
+            1. PODSUMOWANIE ILOŚCI Z PROJEKTU
+            2. KOSZTY ROBOCIZNY (z podziałem)
+            3. KOSZTY MATERIAŁÓW (z podziałem)
+            4. PODSUMOWANIE CAŁKOWITE (Robocizna + Materiał)
+            5. HARMONOGRAM PRAC
+            6. TRANSZE PŁATNOŚCI
             """
 
             zawartosc = pliki_do_ai + [instrukcja]
-            
-            # Wywołanie modelu
             odpowiedz = client.models.generate_content(model='gemini-3.6-flash', contents=zawartosc)
             
-            # Wyświetlenie wyniku na ekranie
             st.success("Analiza zakończona sukcesem!")
             st.write(odpowiedz.text)
             
-            # PRZYCISK DO POBIERANIA
             st.download_button(
                 label="💾 Pobierz raport z wyceną (Plik tekstowy)",
                 data=odpowiedz.text,
-                file_name="Wycena_SSO.txt",
+                file_name="Wycena_SSO_Robocizna_i_Material.txt",
                 mime="text/plain"
             )
             
-            # Usuwanie plików tymczasowych
             for sciezka in sciezki_tymczasowe:
                 os.remove(sciezka)
 
