@@ -5,6 +5,7 @@ import os
 import requests
 import json
 import sqlite3
+import time
 from datetime import datetime
 from fpdf import FPDF
 
@@ -38,7 +39,7 @@ def dodaj_wycene(nazwa, woj, przedmiar, harmonogram, wycena):
         init_db()
         
     c.execute("INSERT INTO archiwum (data_utworzenia, nazwa_klienta, wojewodztwo, przedmiar, harmonogram, wycena) VALUES (?, ?, ?, ?, ?, ?)", 
-              (teraz := datetime.now().strftime("%Y-%m-%d %H:%M:%S"), nazwa, woj, przedmiar, harmonogram, wycena))
+              (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), nazwa, woj, przedmiar, harmonogram, wycena))
     conn.commit()
     conn.close()
 
@@ -123,7 +124,19 @@ def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM
     pdf_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     pdf.output(pdf_file.name)
     return pdf_file.name
-# ------------------------------
+
+# --- BEZPIECZNE WYWOŁANIE API Z AUTOMATYCZNYM PONAWIANIEM (RETRY) ---
+def wywolaj_gemini_z_retry(client, model, contents, max_prob=3):
+    for proba in range(1, max_prob + 1):
+        try:
+            return client.models.generate_content(model=model, contents=contents)
+        except Exception as e:
+            if "503" in str(e) or "UNAVAILABLE" in str(e):
+                if proba < max_prob:
+                    time.sleep(3 * proba) # Czekaj dłużej z każdą próbą
+                    continue
+            raise e
+# -------------------------------------------------------------------
 
 # --- ALGORYTM OPTYMALIZACJI CIĘCIA (Matematyka w Pythonie) ---
 def optymalizuj_ciecie_stali(lista_elementow, dlugosc_handlowa=12.0):
@@ -191,7 +204,7 @@ with st.sidebar:
                         "cena_kominy": 170
                     }}
                     """
-                    response_ceny = client.models.generate_content(model='gemini-3.6-flash', contents=prompt_ceny)
+                    response_ceny = wywolaj_gemini_z_retry(client, 'gemini-3.6-flash', prompt_ceny)
                     znacznik = chr(96) * 3
                     json_str = response_ceny.text.replace(znacznik + "json", "").replace(znacznik, "").strip()
                     nowe_ceny = json.loads(json_str)
@@ -228,7 +241,7 @@ with st.sidebar:
                         "mat_kominy": 320
                     }}
                     """
-                    response_ceny = client.models.generate_content(model='gemini-3.6-flash', contents=prompt_ceny)
+                    response_ceny = wywolaj_gemini_z_retry(client, 'gemini-3.6-flash', prompt_ceny)
                     znacznik = chr(96) * 3
                     json_str = response_ceny.text.replace(znacznik + "json", "").replace(znacznik, "").strip()
                     nowe_ceny = json.loads(json_str)
@@ -361,7 +374,7 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             """
 
             zawartosc = pliki_do_ai + [instrukcja]
-            odpowiedz = client.models.generate_content(model='gemini-3.6-flash', contents=zawartosc)
+            odpowiedz = wywolaj_gemini_z_retry(client, 'gemini-3.6-flash', zawartosc)
             pelny_tekst = odpowiedz.text
             
             if pelny_tekst.count("===PODZIAL===") >= 2:
@@ -473,7 +486,7 @@ if st.button("Wygeneruj Plan Cięcia (Z załączonych PDF)") and uploaded_files 
             """
             
             zawartosc = pliki_do_ai + [prompt_rozboj]
-            odpowiedz_ai = client.models.generate_content(model='gemini-3.6-flash', contents=zawartosc)
+            odpowiedz_ai = wywolaj_gemini_z_retry(client, 'gemini-3.6-flash', zawartosc)
             
             znacznik = chr(96) * 3
             json_str = odpowiedz_ai.text.replace(znacznik + "json", "").replace(znacznik, "").strip()
