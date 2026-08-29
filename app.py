@@ -13,9 +13,35 @@ if "GEMINI_API_KEY" in st.secrets:
 else:
     api_key = st.text_input("Wprowadź swój klucz API Gemini:", type="password")
 
-# 2. Cennik Robocizny i Harmonogram (Pasek boczny)
+# Słownik z mnożnikami regionalnymi (względem średniej krajowej)
+mnozniki_woj = {
+    "Mazowieckie": 1.15,
+    "Małopolskie": 1.08,
+    "Pomorskie": 1.08,
+    "Dolnośląskie": 1.06,
+    "Wielkopolskie": 1.05,
+    "Śląskie": 1.04,
+    "Zachodniopomorskie": 1.02,
+    "Łódzkie": 1.00,
+    "Opolskie": 0.98,
+    "Kujawsko-pomorskie": 0.95,
+    "Lubuskie": 0.95,
+    "Warmińsko-mazurskie": 0.92,
+    "Świętokrzyskie": 0.90,
+    "Podkarpackie": 0.90,
+    "Podlaskie": 0.90,
+    "Lubelskie": 0.90
+}
+
+# 2. Cennik Robocizny, Lokalizacja i Harmonogram (Pasek boczny)
 with st.sidebar:
-    st.header("Cennik Robocizny (PLN netto)")
+    st.header("Lokalizacja Inwestycji")
+    wybrane_woj = st.selectbox("Wybierz województwo", list(mnozniki_woj.keys()))
+    mnoznik = mnozniki_woj[wybrane_woj]
+    st.info(f"Mnożnik regionalny: **{mnoznik}x** (względem stawek bazowych)")
+
+    st.markdown("---")
+    st.header("Bazowy Cennik Robocizny (PLN netto)")
     cena_stal = st.number_input("Zbrojenie (za 1 tonę)", value=1500)
     cena_beton = st.number_input("Betonowanie / Wylewanie (za 1 m3)", value=120)
     cena_mur = st.number_input("Murowanie ścian (za 1 m2)", value=80)
@@ -52,7 +78,7 @@ if st.button("Generuj Wycenę Robocizny") and uploaded_files and api_key:
                 pdf_plik = client.files.upload(file=tmp_file_path)
                 pliki_do_ai.append(pdf_plik)
             
-            # Instrukcja główna
+            # Instrukcja główna dla modelu
             instrukcja = f"""
             Jesteś doświadczonym kosztorysantem budowlanym i inżynierem. 
             Przeanalizuj ZAŁĄCZONE PROJEKTY BUDOWLANE (PDF). Traktuj je jako jedną całość inwestycji. 
@@ -60,15 +86,16 @@ if st.button("Generuj Wycenę Robocizny") and uploaded_files and api_key:
             
             Zadanie 1 - Ilości i Koszty:
             Znajdź w projektach: tony stali zbrojeniowej, kubaturę betonu (m3), powierzchnię ścian (m2), powierzchnię szalunków (m2) i powierzchnię dachu (m2).
-            Przemnóż je przez stawki: Zbrojenie: {cena_stal} PLN/t, Betonowanie: {cena_beton} PLN/m3, Murowanie: {cena_mur} PLN/m2, Szalowanie: {cena_szalunki} PLN/m2, Dach: {cena_dach} PLN/m2.
-            Dodaj do całości {marza}% marży.
+            Przemnóż je przez stawki bazowe: Zbrojenie: {cena_stal} PLN/t, Betonowanie: {cena_beton} PLN/m3, Murowanie: {cena_mur} PLN/m2, Szalowanie: {cena_szalunki} PLN/m2, Dach: {cena_dach} PLN/m2.
+            UWAGA REGIONALNA: Inwestycja znajduje się w województwie {wybrane_woj}. Przemnóż wszystkie wyliczone koszty robocizny przez mnożnik regionalny wynoszący {mnoznik}.
+            Na sam koniec, do ostatecznej kwoty po uwzględnieniu mnożnika regionalnego, dodaj {marza}% marży wykonawcy.
             
             Zadanie 2 - Harmonogram:
             Na podstawie znalezionych ilości, oszacuj łączną liczbę roboczogodzin (R-g) potrzebnych na wykonanie SSO, bazując na standardowych normach budowlanych (KNR). 
             Na budowie będzie pracować stała ekipa licząca {ekipa} osób (przyjmij 8-godzinny dzień pracy).
             Przelicz łączną liczbę roboczogodzin na szacowaną liczbę dni roboczych potrzebnych na realizację całej inwestycji przez tę konkretną ekipę.
             
-            Przygotuj profesjonalny raport dla wykonawcy z wyraźnym podziałem na sekcję wyceny oraz nową sekcję szacunkowego harmonogramu prac. Jeśli jakichś danych brakuje, oszacuj je i wyraźnie zaznacz w raporcie, że to szacunek.
+            Przygotuj profesjonalny raport dla wykonawcy z podziałem na sekcję wyceny (pokaż jasno wpływ wybranego województwa i mnożnika na cenę) oraz sekcję szacunkowego harmonogramu prac. Jeśli jakichś danych brakuje, oszacuj je i wyraźnie zaznacz, że to szacunek.
             """
 
             zawartosc = pliki_do_ai + [instrukcja]
@@ -80,7 +107,7 @@ if st.button("Generuj Wycenę Robocizny") and uploaded_files and api_key:
             st.success("Analiza zakończona sukcesem!")
             st.write(odpowiedz.text)
             
-            # PRZYCISK DO POBIERANIA - nowa funkcja
+            # PRZYCISK DO POBIERANIA
             st.download_button(
                 label="💾 Pobierz raport z wyceną (Plik tekstowy)",
                 data=odpowiedz.text,
@@ -98,4 +125,3 @@ elif not api_key:
     st.warning("Podaj klucz API, aby móc wygenerować wycenę.")
 elif not uploaded_files:
     st.warning("Wgraj co najmniej jeden plik PDF z projektem.")
-    
