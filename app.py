@@ -88,6 +88,8 @@ with st.sidebar:
     cena_mur_dzialowe = st.number_input("Robocizna: Ściany DZIAŁOWE (za 1 m2)", value=60)
     cena_szalunki = st.number_input("Robocizna: Szalowanie (za 1 m2)", value=70)
     cena_dach = st.number_input("Robocizna: Więźba i pokrycie (za 1 m2)", value=150)
+    cena_schody = st.number_input("Robocizna: Schody żelbetowe (za komplet/piętro)", value=3000)
+    cena_slupy = st.number_input("Robocizna: Słupy żelbetowe (za 1 mb)", value=150)
     marza = st.slider("Narzut / Marża wykonawcy (%)", 0, 50, 15)
     
     st.markdown("---")
@@ -98,6 +100,8 @@ with st.sidebar:
     mat_mur_dzialowe = st.number_input("Materiał: Bloczki DZIAŁOWE (za 1 m2)", value=80)
     mat_szalunki = st.number_input("Materiał: Drewno/sklejka (za 1 m2)", value=50)
     mat_dach = st.number_input("Materiał: Więźba + dachówka/blacha (za 1 m2)", value=250)
+    mat_schody = st.number_input("Materiał: Schody (beton/stal/szalunek za komplet)", value=2500)
+    mat_slupy = st.number_input("Materiał: Słupy (beton/stal/szalunek za 1 mb)", value=120)
 
     st.markdown("---")
     st.header("Planowanie Czasu")
@@ -128,19 +132,19 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             UWAGA FORMATOWANIE: RAPORT TRAFI DO PLIKU PDF. Nie używaj gwiazdek (*), ani krzyżyków (#). Używaj wielkich liter dla głównych NAGŁÓWKÓW. Używaj zwykłych myślników do list.
             
             Zadanie 1 - SZCZEGÓŁOWY PRZEDMIAR:
-            Znajdź zapotrzebowanie na: tony stali, beton (m3), szalunki (m2), dach (m2).
+            Znajdź zapotrzebowanie na: tony stali, beton (m3), szalunki (m2), dach (m2), schody żelbetowe (ilość kompletów/kondygnacji), słupy żelbetowe (łączna długość w mb).
             Podziel ściany osobno w rozbiciu na kondygnacje i rodzaj: nośne parter, nośne piętro, działowe parter, działowe piętro.
             
             Zadanie 2 - ROBOCIZNA:
-            Stawki bazowe: Zbrojenie: {cena_stal} PLN/t, Betonowanie: {cena_beton} PLN/m3, Ściany nośne: {cena_mur_nosne} PLN/m2, Ściany działowe: {cena_mur_dzialowe} PLN/m2, Szalowanie: {cena_szalunki} PLN/m2, Dach: {cena_dach} PLN/m2.
+            Stawki bazowe: Zbrojenie: {cena_stal} PLN/t, Betonowanie: {cena_beton} PLN/m3, Ściany nośne: {cena_mur_nosne} PLN/m2, Ściany działowe: {cena_mur_dzialowe} PLN/m2, Szalowanie: {cena_szalunki} PLN/m2, Dach: {cena_dach} PLN/m2, Schody żelbetowe: {cena_schody} PLN/komplet, Słupy żelbetowe: {cena_slupy} PLN/mb.
             Pokaż koszty w rozbiciu. Przemnóż wynik całości przez {mnoznik} i na koniec dodaj {marza}% marży.
             
             Zadanie 3 - MATERIAŁY:
-            Stawki bazowe: Stal: {mat_stal} PLN/t, Beton: {mat_beton} PLN/m3, Ściany nośne: {mat_mur_nosne} PLN/m2, Ściany działowe: {mat_mur_dzialowe} PLN/m2, Szalunki: {mat_szalunki} PLN/m2, Dach: {mat_dach} PLN/m2.
+            Stawki bazowe: Stal: {mat_stal} PLN/t, Beton: {mat_beton} PLN/m3, Ściany nośne: {mat_mur_nosne} PLN/m2, Ściany działowe: {mat_mur_dzialowe} PLN/m2, Szalunki: {mat_szalunki} PLN/m2, Dach: {mat_dach} PLN/m2, Schody żelbetowe: {mat_schody} PLN/komplet, Słupy żelbetowe: {mat_slupy} PLN/mb.
             Pokaż wyraźny podział kosztów i przemnóż je przez {mnoznik}.
             
             Zadanie 4 - HARMONOGRAM PRAC:
-            Oszacuj dni robocze dla {ekipa} pracowników (8h pracy). Rozbij czas trwania wyraźnie na: fundamenty, ściany nośne (kondygnacjami), stropy, dach.
+            Oszacuj dni robocze dla {ekipa} pracowników (8h pracy). Rozbij czas trwania wyraźnie na: fundamenty, ściany nośne (kondygnacjami), stropy, dach, słupy, schody.
             
             Zadanie 5 - TRANSZE PŁATNOŚCI:
             Podziel prace drobno na etapy (np. Ławy, Ściany fundamentowe, Strop itp.). W każdym etapie wyraźnie rozbij: ile to ZALICZKA NA MATERIAŁ, a ile ZAPŁATA ZA ROBOCIZNĘ.
