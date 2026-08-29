@@ -35,10 +35,14 @@ def dodaj_wycene(nazwa, woj, przedmiar, wycena):
     conn.commit()
     conn.close()
 
-def pobierz_wyceny():
+def pobierz_wyceny(szukana_fraza=""):
     conn = sqlite3.connect("baza_wycen.db")
     c = conn.cursor()
-    c.execute("SELECT * FROM archiwum ORDER BY id DESC")
+    if szukana_fraza:
+        c.execute("SELECT * FROM archiwum WHERE nazwa_klienta LIKE ? OR wojewodztwo LIKE ? ORDER BY id DESC", 
+                  ('%' + szukana_fraza + '%', '%' + szukana_fraza + '%'))
+    else:
+        c.execute("SELECT * FROM archiwum ORDER BY id DESC")
     dane = c.fetchall()
     conn.close()
     return dane
@@ -484,28 +488,69 @@ if st.button("Wygeneruj Plan Cięcia (Z załączonych PDF)") and uploaded_files 
 
 st.markdown("---")
 
-# --- NOWA SEKCJA: ARCHIWUM BAZY DANYCH ---
+# --- ARCHIWUM BAZY DANYCH Z WYSZUKIWARKĄ I POBIERANIEM PDF ---
 st.header("📂 Archiwum Zapisanych Wycen")
-st.write("Tutaj przechowywana jest historia wygenerowanych kosztorysów. Dane trzymane są bezpiecznie w lokalnej bazie.")
+st.write("Tutaj przechowywana jest historia wygenerowanych kosztorysów. Możesz wyszukać klienta i ponownie pobrać czyste pliki PDF.")
 
-dane_wycen = pobierz_wyceny()
+# Wyszukiwarka
+szukana_fraza = st.text_input("🔍 Szukaj w archiwum (wpisz nazwę klienta lub województwo)", value="")
+
+dane_wycen = pobierz_wyceny(szukana_fraza)
 
 if not dane_wycen:
-    st.info("Baza danych jest pusta. Twoje wyceny pojawią się tutaj po ich wygenerowaniu.")
+    st.info("Brak wyników w archiwum dla podanej frazy.")
 else:
     for w in dane_wycen:
-        # w = (id, data_utworzenia, nazwa_klienta, wojewodztwo, przedmiar, wycena)
         id_rekordu = w[0]
         data_rekordu = w[1]
         klient = w[2]
         woj = w[3]
+        tekst_przedmiaru_arch = w[4]
+        tekst_wyceny_arch = w[5]
         
         with st.expander(f"📌 {klient} | Utworzono: {data_rekordu} | Województwo: {woj}"):
             st.markdown("### 📄 Zestawienie Przedmiarów")
-            st.write(w[4])
+            st.write(tekst_przedmiaru_arch)
             st.markdown("### 💰 Wycena i Harmonogram")
-            st.write(w[5])
+            st.write(tekst_wyceny_arch)
             
-            if st.button("🗑️ Usuń z archiwum", key=f"usun_{id_rekordu}"):
-                usun_wycene(id_rekordu)
-                st.rerun()
+            st.markdown("---")
+            pdf_arch_p = generuj_pdf(tekst_przedmiaru_arch, sciezka_do_logo, tytul=f"ZESTAWIENIE PRZEDMIAROW - {klient}")
+            pdf_arch_w = generuj_pdf(tekst_wyceny_arch, sciezka_do_logo, tytul=f"KOSZTORYS - {klient}")
+            
+            with open(pdf_arch_p, "rb") as fp:
+                bytes_p = fp.read()
+            with open(pdf_arch_w, "rb") as fw:
+                bytes_w = fw.read()
+                
+            arch_col1, arch_col2, arch_col3 = st.columns(3)
+            with arch_col1:
+                st.download_button(
+                    label="📄 Pobierz Przedmiar (PDF)",
+                    data=bytes_p,
+                    file_name=f"Przedmiar_{klient.replace(' ', '_')}.pdf",
+                    mime="application/pdf",
+                    key=f"pobierz_p_{id_rekordu}",
+                    use_container_width=True
+                )
+            with arch_col2:
+                st.download_button(
+                    label="💰 Pobierz Wycenę (PDF)",
+                    data=bytes_w,
+                    file_name=f"Wycena_{klient.replace(' ', '_')}.pdf",
+                    mime="application/pdf",
+                    key=f"pobierz_w_{id_rekordu}",
+                    use_container_width=True
+                )
+            with arch_col3:
+                if st.button("🗑️ Usuń z archiwum", key=f"usun_{id_rekordu}", use_container_width=True):
+                    usun_wycene(id_rekordu)
+                    os.remove(pdf_arch_p)
+                    os.remove(pdf_arch_w)
+                    st.rerun()
+                    
+            try:
+                os.remove(pdf_arch_p)
+                os.remove(pdf_arch_w)
+            except Exception:
+                pass
