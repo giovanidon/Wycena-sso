@@ -44,7 +44,8 @@ with st.sidebar:
     st.header("1. Cennik Robocizny (PLN netto)")
     cena_stal = st.number_input("Robocizna: Zbrojenie (za 1 tonę)", value=1500)
     cena_beton = st.number_input("Robocizna: Wylewanie (za 1 m3)", value=120)
-    cena_mur = st.number_input("Robocizna: Murowanie (za 1 m2)", value=80)
+    cena_mur_nosne = st.number_input("Robocizna: Ściany NOŚNE (za 1 m2)", value=80)
+    cena_mur_dzialowe = st.number_input("Robocizna: Ściany DZIAŁOWE (za 1 m2)", value=60)
     cena_szalunki = st.number_input("Robocizna: Szalowanie (za 1 m2)", value=70)
     cena_dach = st.number_input("Robocizna: Więźba i pokrycie (za 1 m2)", value=150)
     marza = st.slider("Narzut / Marża wykonawcy (%)", 0, 50, 15)
@@ -53,7 +54,8 @@ with st.sidebar:
     st.header("2. Cennik Materiałów (PLN netto)")
     mat_stal = st.number_input("Materiał: Stal zbrojeniowa (za 1 tonę)", value=3500)
     mat_beton = st.number_input("Materiał: Beton (za 1 m3)", value=350)
-    mat_mur = st.number_input("Materiał: Bloczki + zaprawa (za 1 m2)", value=120)
+    mat_mur_nosne = st.number_input("Materiał: Bloczki NOŚNE (za 1 m2)", value=120)
+    mat_mur_dzialowe = st.number_input("Materiał: Bloczki DZIAŁOWE (za 1 m2)", value=80)
     mat_szalunki = st.number_input("Materiał: Drewno/sklejka (za 1 m2)", value=50)
     mat_dach = st.number_input("Materiał: Więźba + dachówka/blacha (za 1 m2)", value=250)
 
@@ -87,30 +89,45 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             instrukcja = f"""
             Jesteś doświadczonym kosztorysantem budowlanym. 
             Przeanalizuj ZAŁĄCZONE PROJEKTY BUDOWLANE (PDF). Traktuj je jako jedną inwestycję w Stanie Surowym Otwartym (SSO).
-            Znajdź zapotrzebowanie na: tony stali, kubaturę betonu (m3), powierzchnię ścian (m2), powierzchnię szalunków (m2) i powierzchnię dachu (m2).
             Inwestycja znajduje się w województwie {wybrane_woj} (mnożnik regionalny: {mnoznik}).
             
-            Zadanie 1 - Wycena ROBOCIZNY:
-            Przemnóż ilości przez stawki bazowe robocizny: Zbrojenie: {cena_stal} PLN/t, Betonowanie: {cena_beton} PLN/m3, Murowanie: {cena_mur} PLN/m2, Szalowanie: {cena_szalunki} PLN/m2, Dach: {cena_dach} PLN/m2.
-            Przemnóż wynik przez mnożnik regionalny ({mnoznik}), a następnie dodaj {marza}% marży wykonawcy.
+            Zadanie 1 - SZCZEGÓŁOWY PRZEDMIAR ILOŚCI:
+            Znajdź zapotrzebowanie na: tony stali, kubaturę betonu (m3), powierzchnię szalunków (m2) i powierzchnię dachu (m2).
+            BARDZO WAŻNE: Bezwzględnie podziel ściany i wypisz je osobno w rozbiciu na kondygnacje i rodzaj:
+            - Ściany nośne - parter (m2)
+            - Ściany nośne - piętro/poddasze (m2)
+            - Ściany działowe - parter (m2)
+            - Ściany działowe - piętro/poddasze (m2)
+            Absolutnie nie wrzucaj wszystkich ścian do jednego worka!
             
-            Zadanie 2 - Wycena MATERIAŁÓW:
-            Przemnóż ilości przez stawki bazowe materiałów: Stal: {mat_stal} PLN/t, Beton: {mat_beton} PLN/m3, Ściany: {mat_mur} PLN/m2, Szalunki: {mat_szalunki} PLN/m2, Dach: {mat_dach} PLN/m2.
-            Przemnóż koszty materiałów przez mnożnik regionalny ({mnoznik}). Podaj wyniki wyraźnie oddzielone od robocizny.
+            Zadanie 2 - Wycena ROBOCIZNY:
+            Przemnóż ilości przez stawki bazowe robocizny: 
+            Zbrojenie: {cena_stal} PLN/t, Betonowanie: {cena_beton} PLN/m3, 
+            Ściany nośne: {cena_mur_nosne} PLN/m2, Ściany działowe: {cena_mur_dzialowe} PLN/m2, 
+            Szalowanie: {cena_szalunki} PLN/m2, Dach: {cena_dach} PLN/m2.
+            W raporcie pokaż koszty murowania w rozbiciu na nośne/działowe i piętra.
+            Przemnóż wynik całości przez mnożnik regionalny ({mnoznik}), a na koniec dodaj {marza}% marży wykonawcy.
             
-            Zadanie 3 - Harmonogram Prac:
+            Zadanie 3 - Wycena MATERIAŁÓW:
+            Przemnóż ilości przez stawki bazowe materiałów: 
+            Stal: {mat_stal} PLN/t, Beton: {mat_beton} PLN/m3, 
+            Ściany nośne: {mat_mur_nosne} PLN/m2, Ściany działowe: {mat_mur_dzialowe} PLN/m2, 
+            Szalunki: {mat_szalunki} PLN/m2, Dach: {mat_dach} PLN/m2.
+            Przemnóż koszty materiałów przez mnożnik regionalny ({mnoznik}). Podaj wyniki wyraźnie oddzielone od robocizny (również z rozbiciem ścian).
+            
+            Zadanie 4 - Harmonogram Prac:
             Oszacuj liczbę roboczogodzin (R-g) na podstawie norm KNR i przelicz je na dni robocze dla ekipy liczącej {ekipa} osób (8h pracy dziennie).
             
-            Zadanie 4 - Szczegółowy Harmonogram Płatności (Transze):
+            Zadanie 5 - Szczegółowy Harmonogram Płatności (Transze):
             Rozbij całkowitą kwotę wyceny na bardzo szczegółowe transze. Podziel etapy:
             - Fundamenty: 1. Ławy, 2. Ściany, 3. Kanalizacja podposadzkowa, zasypanie, wylanie chudego betonu.
             - Płyta fundamentowa: 1. Szalowanie, 2. Zbrojenie, 3. Wylanie.
             - Stropy: 1. Szalowanie, 2. Zbrojenie, 3. Wylanie.
-            - Ściany i dach podziel logicznie na etapy (mury parteru, więźba, pokrycie).
+            - Ściany i dach podziel logicznie na etapy.
             W każdej transzy rozbij wyraźnie, jaka kwota to ZALICZKA NA MATERIAŁ, a jaka to ZAPŁATA ZA ROBOCIZNĘ po etapie.
             
             Format raportu:
-            1. PODSUMOWANIE ILOŚCI Z PROJEKTU
+            1. PODSUMOWANIE ILOŚCI Z PROJEKTU (z dokładnym rozbiciem ścian)
             2. KOSZTY ROBOCIZNY (z podziałem)
             3. KOSZTY MATERIAŁÓW (z podziałem)
             4. PODSUMOWANIE CAŁKOWITE (Robocizna + Materiał)
@@ -127,7 +144,7 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             st.download_button(
                 label="💾 Pobierz raport z wyceną (Plik tekstowy)",
                 data=odpowiedz.text,
-                file_name="Wycena_SSO_Robocizna_i_Material.txt",
+                file_name="Wycena_SSO_Szczegolowa.txt",
                 mime="text/plain"
             )
             
