@@ -70,7 +70,7 @@ def usun_wycene(id_wyceny):
 init_db()
 # ------------------------------------
 
-# --- Inicjalizacja domyślnych cen w pamięci aplikacji (session_state) ---
+# --- Inicjalizacja trwałego cennika w session_state (zapobiega resetowaniu po odświeżeniu) ---
 if 'ceny' not in st.session_state:
     st.session_state['ceny'] = {
         'cena_stal': 1500, 'cena_beton': 120, 'cena_mur_nosne': 80,
@@ -92,7 +92,6 @@ def pobierz_czcionke():
     return font_path
 
 def czysc_tekst_dla_pdf(tekst):
-    """Zamienia polskie znaki na bezpieczne dla kodowania PDF"""
     polskie = {'ą': 'a', 'ć': 'c', 'ę': 'e', 'ł': 'l', 'ń': 'n', 'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z',
                'Ą': 'A', 'Ć': 'C', 'Ę': 'E', 'Ł': 'L', 'Ń': 'N', 'Ó': 'O', 'Ś': 'S', 'Ź': 'Z', 'Ż': 'Z'}
     for pl, en in polskie.items():
