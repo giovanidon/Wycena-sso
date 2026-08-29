@@ -90,12 +90,24 @@ if st.button("Generuj Wycenę Robocizny") and uploaded_files and api_key:
             UWAGA REGIONALNA: Inwestycja znajduje się w województwie {wybrane_woj}. Przemnóż wszystkie wyliczone koszty robocizny przez mnożnik regionalny wynoszący {mnoznik}.
             Na sam koniec, do ostatecznej kwoty po uwzględnieniu mnożnika regionalnego, dodaj {marza}% marży wykonawcy.
             
-            Zadanie 2 - Harmonogram:
+            Zadanie 2 - Harmonogram Prac:
             Na podstawie znalezionych ilości, oszacuj łączną liczbę roboczogodzin (R-g) potrzebnych na wykonanie SSO, bazując na standardowych normach budowlanych (KNR). 
             Na budowie będzie pracować stała ekipa licząca {ekipa} osób (przyjmij 8-godzinny dzień pracy).
             Przelicz łączną liczbę roboczogodzin na szacowaną liczbę dni roboczych potrzebnych na realizację całej inwestycji przez tę konkretną ekipę.
             
-            Przygotuj profesjonalny raport dla wykonawcy z podziałem na sekcję wyceny (pokaż jasno wpływ wybranego województwa i mnożnika na cenę) oraz sekcję szacunkowego harmonogramu prac. Jeśli jakichś danych brakuje, oszacuj je i wyraźnie zaznacz, że to szacunek.
+            Zadanie 3 - Szczegółowy Harmonogram Płatności (Transze):
+            Rozbij całkowitą kwotę wyceny na bardzo szczegółowe transze płatności, adekwatnie do etapów budowy. Podziel etapy bardzo drobno, zgodnie z poniższymi wytycznymi:
+            - Fundamenty tradycyjne: 1. Ławy fundamentowe, 2. Ściany fundamentowe, 3. Kanalizacja podposadzkowa, zasypanie fundamentów i wylanie chudego betonu.
+            - Płyta fundamentowa (jeśli dotyczy): 1. Szalowanie, 2. Zbrojenie płyty, 3. Wylanie betonu.
+            - Stropy: 1. Szalowanie stropu, 2. Zbrojenie stropu, 3. Wylanie betonu.
+            - Ściany i dach również podziel na logiczne, mniejsze etapy (np. mury parteru, mury piętra/poddasza, więźba dachowa, pokrycie dachu).
+            Przypisz do każdej transzy procentowy udział w całkowitej kwocie oraz dokładnie wyliczoną kwotę netto.
+            
+            Przygotuj profesjonalny raport dla wykonawcy z podziałem na: 
+            1. Sekcję wyceny
+            2. Sekcję szacunkowego harmonogramu prac
+            3. Sekcję szczegółowego harmonogramu płatności (drobne transze). 
+            Jeśli jakichś danych brakuje, oszacuj je i wyraźnie zaznacz, że to szacunek.
             """
 
             zawartosc = pliki_do_ai + [instrukcja]
