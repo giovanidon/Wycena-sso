@@ -2,43 +2,82 @@ import streamlit as st
 from google import genai
 import tempfile
 import os
+import requests
+from fpdf import FPDF
 
 # Konfiguracja strony
 st.set_page_config(page_title="Wycena SSO - AI", layout="wide")
-st.title("🏗️ Kalkulator Robocizny i Materiałów SSO")
+st.title("🏗️ Kalkulator Robocizny i Materiałów SSO (Eksport PDF)")
 
-# 1. Konfiguracja API (Pobieranie z bezpiecznego sejfu)
+# --- Funkcje do obsługi PDF ---
+@st.cache_resource
+def pobierz_czcionke():
+    """Pobiera czcionkę obsługującą polskie znaki do generowania PDF."""
+    font_path = "DejaVuSans.ttf"
+    if not os.path.exists(font_path):
+        url = "https://github.com/matomo-org/travis-scripts/raw/master/fonts/DejaVuSans.ttf"
+        r = requests.get(url, allow_redirects=True)
+        open(font_path, 'wb').write(r.content)
+    return font_path
+
+def generuj_pdf(tekst_raportu):
+    font_path = pobierz_czcionke()
+    pdf = FPDF()
+    pdf.add_page()
+    
+    # Obsługa polskich znaków
+    pdf.add_font("DejaVu", "", font_path, uni=True)
+    pdf.set_font("DejaVu", size=11)
+    
+    # Dodawanie logo, jeśli plik istnieje
+    if os.path.exists("logo.png"):
+        pdf.image("logo.png", x=10, y=8, w=40)
+        pdf.ln(25)
+    elif os.path.exists("logo.jpg"):
+        pdf.image("logo.jpg", x=10, y=8, w=40)
+        pdf.ln(25)
+    else:
+        pdf.ln(10)
+        
+    # Tytuł
+    pdf.set_font("DejaVu", size=16)
+    pdf.cell(0, 10, txt="KOSZTORYS I HARMONOGRAM PRAC SSO", ln=True, align='C')
+    pdf.ln(10)
+    
+    # Treść właściwa
+    pdf.set_font("DejaVu", size=10)
+    
+    # Czyszczenie tekstu z ewentualnych znaczków Markdown, by PDF był ładny
+    czysty_tekst = tekst_raportu.replace('**', '').replace('##', '').replace('#', '')
+    
+    for line in czysty_tekst.split('\n'):
+        pdf.multi_cell(0, 6, txt=line)
+        
+    pdf_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+    pdf.output(pdf_file.name)
+    return pdf_file.name
+# ------------------------------
+
+# 1. Konfiguracja API
 if "GEMINI_API_KEY" in st.secrets:
     api_key = st.secrets["GEMINI_API_KEY"]
 else:
     api_key = st.text_input("Wprowadź swój klucz API Gemini:", type="password")
 
-# Słownik z mnożnikami regionalnymi (względem średniej krajowej)
+# Słownik z mnożnikami regionalnymi
 mnozniki_woj = {
-    "Mazowieckie": 1.15,
-    "Małopolskie": 1.08,
-    "Pomorskie": 1.08,
-    "Dolnośląskie": 1.06,
-    "Wielkopolskie": 1.05,
-    "Śląskie": 1.04,
-    "Zachodniopomorskie": 1.02,
-    "Łódzkie": 1.00,
-    "Opolskie": 0.98,
-    "Kujawsko-pomorskie": 0.95,
-    "Lubuskie": 0.95,
-    "Warmińsko-mazurskie": 0.92,
-    "Świętokrzyskie": 0.90,
-    "Podkarpackie": 0.90,
-    "Podlaskie": 0.90,
-    "Lubelskie": 0.90
+    "Mazowieckie": 1.15, "Małopolskie": 1.08, "Pomorskie": 1.08, "Dolnośląskie": 1.06,
+    "Wielkopolskie": 1.05, "Śląskie": 1.04, "Zachodniopomorskie": 1.02, "Łódzkie": 1.00,
+    "Opolskie": 0.98, "Kujawsko-pomorskie": 0.95, "Lubuskie": 0.95, "Warmińsko-mazurskie": 0.92,
+    "Świętokrzyskie": 0.90, "Podkarpackie": 0.90, "Podlaskie": 0.90, "Lubelskie": 0.90
 }
 
-# 2. Pasek boczny: Cenniki, Lokalizacja i Harmonogram
+# 2. Pasek boczny
 with st.sidebar:
     st.header("Lokalizacja Inwestycji")
     wybrane_woj = st.selectbox("Wybierz województwo", list(mnozniki_woj.keys()))
     mnoznik = mnozniki_woj[wybrane_woj]
-    st.info(f"Mnożnik regionalny: **{mnoznik}x** (względem stawek bazowych)")
+    st.info(f"Mnożnik regionalny: **{mnoznik}x**")
 
     st.markdown("---")
     st.header("1. Cennik Robocizny (PLN netto)")
@@ -64,14 +103,10 @@ with st.sidebar:
     ekipa = st.number_input("Liczba pracowników na budowie", min_value=1, value=3)
 
 # 3. Wgrywanie projektów
-uploaded_files = st.file_uploader(
-    "Wgraj projekty konstrukcyjne (PDF) - możesz zaznaczyć kilka plików", 
-    type=['pdf'], 
-    accept_multiple_files=True
-)
+uploaded_files = st.file_uploader("Wgraj projekty konstrukcyjne (PDF)", type=['pdf'], accept_multiple_files=True)
 
 if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
-    with st.spinner("Sztuczna Inteligencja analizuje projekty i wylicza koszty..."):
+    with st.spinner("Tworzenie wyceny i generowanie pliku PDF (może to zająć do kilkunastu sekund)..."):
         try:
             client = genai.Client(api_key=api_key)
             pliki_do_ai = []
@@ -87,62 +122,27 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
                 pliki_do_ai.append(pdf_plik)
             
             instrukcja = f"""
-            Jesteś doświadczonym kosztorysantem budowlanym. 
-            Przeanalizuj ZAŁĄCZONE PROJEKTY BUDOWLANE (PDF). Traktuj je jako jedną inwestycję w Stanie Surowym Otwartym (SSO).
-            Inwestycja znajduje się w województwie {wybrane_woj} (mnożnik regionalny: {mnoznik}).
+            Jesteś doświadczonym kosztorysantem. Przeanalizuj ZAŁĄCZONE PROJEKTY BUDOWLANE (PDF). Inwestycja: Stan Surowy Otwarty (SSO), województwo {wybrane_woj} (mnożnik regionalny: {mnoznik}).
             
-            Zadanie 1 - SZCZEGÓŁOWY PRZEDMIAR ILOŚCI:
-            Znajdź zapotrzebowanie na: tony stali, kubaturę betonu (m3), powierzchnię szalunków (m2) i powierzchnię dachu (m2).
-            BARDZO WAŻNE: Bezwzględnie podziel ściany i wypisz je osobno w rozbiciu na kondygnacje i rodzaj:
-            - Ściany nośne - parter (m2)
-            - Ściany nośne - piętro/poddasze (m2)
-            - Ściany działowe - parter (m2)
-            - Ściany działowe - piętro/poddasze (m2)
-            Absolutnie nie wrzucaj wszystkich ścian do jednego worka!
+            UWAGA FORMATOWANIE: RAPORT TRAFI DO PLIKU PDF. Nie używaj gwiazdek (*), ani krzyżyków (#). Używaj wielkich liter dla głównych NAGŁÓWKÓW. Używaj zwykłych myślników do list.
             
-            Zadanie 2 - Wycena ROBOCIZNY:
-            Przemnóż ilości przez stawki bazowe robocizny: 
-            Zbrojenie: {cena_stal} PLN/t, Betonowanie: {cena_beton} PLN/m3, 
-            Ściany nośne: {cena_mur_nosne} PLN/m2, Ściany działowe: {cena_mur_dzialowe} PLN/m2, 
-            Szalowanie: {cena_szalunki} PLN/m2, Dach: {cena_dach} PLN/m2.
-            W raporcie pokaż koszty murowania w rozbiciu na nośne/działowe i piętra.
-            Przemnóż wynik całości przez mnożnik regionalny ({mnoznik}), a na koniec dodaj {marza}% marży wykonawcy.
+            Zadanie 1 - SZCZEGÓŁOWY PRZEDMIAR:
+            Znajdź zapotrzebowanie na: tony stali, beton (m3), szalunki (m2), dach (m2).
+            Podziel ściany osobno w rozbiciu na kondygnacje i rodzaj: nośne parter, nośne piętro, działowe parter, działowe piętro.
             
-            Zadanie 3 - Wycena MATERIAŁÓW:
-            Przemnóż ilości przez stawki bazowe materiałów: 
-            Stal: {mat_stal} PLN/t, Beton: {mat_beton} PLN/m3, 
-            Ściany nośne: {mat_mur_nosne} PLN/m2, Ściany działowe: {mat_mur_dzialowe} PLN/m2, 
-            Szalunki: {mat_szalunki} PLN/m2, Dach: {mat_dach} PLN/m2.
-            Przemnóż koszty materiałów przez mnożnik regionalny ({mnoznik}). Podaj wyniki wyraźnie oddzielone od robocizny (również z rozbiciem ścian).
+            Zadanie 2 - ROBOCIZNA:
+            Stawki bazowe: Zbrojenie: {cena_stal} PLN/t, Betonowanie: {cena_beton} PLN/m3, Ściany nośne: {cena_mur_nosne} PLN/m2, Ściany działowe: {cena_mur_dzialowe} PLN/m2, Szalowanie: {cena_szalunki} PLN/m2, Dach: {cena_dach} PLN/m2.
+            Pokaż koszty w rozbiciu. Przemnóż wynik całości przez {mnoznik} i na koniec dodaj {marza}% marży.
             
-            Zadanie 4 - Harmonogram Prac (Szczegółowy!):
-            Oszacuj liczbę roboczogodzin (R-g) na podstawie norm KNR dla poszczególnych etapów.
-            Przelicz je na dni robocze dla ekipy liczącej {ekipa} osób (8h pracy dziennie).
-            BARDZO WAŻNE: Nie wrzucaj czasu do jednego worka. Wypisz wyraźnie, ile dni roboczych dla podanej ekipy zajmie:
-            - Wykonanie fundamentów / płyty
-            - Murowanie ścian nośnych parteru
-            - Murowanie ścian działowych parteru
-            - Wykonanie stropów nad parterem
-            - Murowanie ścian nośnych piętra/poddasza
-            - Murowanie ścian działowych piętra/poddasza
-            - Wykonanie dachu (więźba i pokrycie)
-            Dopiero pod tym szczegółowym wyliczeniem podaj łączny szacowany czas trwania inwestycji.
+            Zadanie 3 - MATERIAŁY:
+            Stawki bazowe: Stal: {mat_stal} PLN/t, Beton: {mat_beton} PLN/m3, Ściany nośne: {mat_mur_nosne} PLN/m2, Ściany działowe: {mat_mur_dzialowe} PLN/m2, Szalunki: {mat_szalunki} PLN/m2, Dach: {mat_dach} PLN/m2.
+            Pokaż wyraźny podział kosztów i przemnóż je przez {mnoznik}.
             
-            Zadanie 5 - Szczegółowy Harmonogram Płatności (Transze):
-            Rozbij całkowitą kwotę wyceny na bardzo szczegółowe transze. Podziel etapy:
-            - Fundamenty: 1. Ławy, 2. Ściany, 3. Kanalizacja podposadzkowa, zasypanie, wylanie chudego betonu.
-            - Płyta fundamentowa: 1. Szalowanie, 2. Zbrojenie, 3. Wylanie.
-            - Stropy: 1. Szalowanie, 2. Zbrojenie, 3. Wylanie.
-            - Ściany i dach podziel logicznie na etapy.
-            W każdej transzy rozbij wyraźnie, jaka kwota to ZALICZKA NA MATERIAŁ, a jaka to ZAPŁATA ZA ROBOCIZNĘ po etapie.
+            Zadanie 4 - HARMONOGRAM PRAC:
+            Oszacuj dni robocze dla {ekipa} pracowników (8h pracy). Rozbij czas trwania wyraźnie na: fundamenty, ściany nośne (kondygnacjami), stropy, dach.
             
-            Format raportu:
-            1. PODSUMOWANIE ILOŚCI Z PROJEKTU (z dokładnym rozbiciem ścian)
-            2. KOSZTY ROBOCIZNY (z podziałem)
-            3. KOSZTY MATERIAŁÓW (z podziałem)
-            4. PODSUMOWANIE CAŁKOWITE (Robocizna + Materiał)
-            5. SZCZEGÓŁOWY HARMONOGRAM PRAC (z podziałem na dniówki)
-            6. TRANSZE PŁATNOŚCI
+            Zadanie 5 - TRANSZE PŁATNOŚCI:
+            Podziel prace drobno na etapy (np. Ławy, Ściany fundamentowe, Strop itp.). W każdym etapie wyraźnie rozbij: ile to ZALICZKA NA MATERIAŁ, a ile ZAPŁATA ZA ROBOCIZNĘ.
             """
 
             zawartosc = pliki_do_ai + [instrukcja]
@@ -151,13 +151,21 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             st.success("Analiza zakończona sukcesem!")
             st.write(odpowiedz.text)
             
+            # Generowanie pliku PDF
+            pdf_path = generuj_pdf(odpowiedz.text)
+            
+            with open(pdf_path, "rb") as pdf_file:
+                pdf_bytes = pdf_file.read()
+            
             st.download_button(
-                label="💾 Pobierz raport z wyceną (Plik tekstowy)",
-                data=odpowiedz.text,
-                file_name="Wycena_SSO_Szczegolowa.txt",
-                mime="text/plain"
+                label="💾 Pobierz raport z wyceną (PDF)",
+                data=pdf_bytes,
+                file_name="Wycena_SSO.pdf",
+                mime="application/pdf"
             )
             
+            # Usuwanie plików tymczasowych
+            os.remove(pdf_path)
             for sciezka in sciezki_tymczasowe:
                 os.remove(sciezka)
 
@@ -167,4 +175,4 @@ elif not api_key:
     st.warning("Podaj klucz API, aby móc wygenerować wycenę.")
 elif not uploaded_files:
     st.warning("Wgraj co najmniej jeden plik PDF z projektem.")
-                
+    
