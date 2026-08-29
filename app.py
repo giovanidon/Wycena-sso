@@ -67,31 +67,19 @@ def generuj_pdf(tekst_raportu, sciezka_logo=None):
 
 # --- ALGORYTM OPTYMALIZACJI CIĘCIA (Matematyka w Pythonie) ---
 def optymalizuj_ciecie_stali(lista_elementow, dlugosc_handlowa=12.0):
-    """
-    Algorytm FFD (First Fit Decreasing) pakujący odcinki na sztangi.
-    lista_elementow to lista floatów (np. [4.5, 4.5, 3.2, 1.5...])
-    """
-    # Sortujemy malejąco - najpierw upychamy najdłuższe odcinki
     lista_elementow.sort(reverse=True)
-    
-    sztangi = [] # Lista sztang, każda sztanga to lista uciętych na niej elementów
-    
+    sztangi = [] 
     for element in lista_elementow:
         if element > dlugosc_handlowa:
-            continue # Jeśli element jest dłuższy niż sztanga, ignorujemy (błąd projektu)
-            
+            continue
         zapakowano = False
-        # Szukamy pierwszej sztangi, na której zmieści się element
         for sztanga in sztangi:
             if sum(sztanga) + element <= dlugosc_handlowa:
                 sztanga.append(element)
                 zapakowano = True
                 break
-                
-        # Jeśli nie zmieścił się na żadnej napoczętej, bierzemy nową sztangę
         if not zapakowano:
             sztangi.append([element])
-            
     return sztangi
 # -----------------------------------------------------------
 
@@ -238,6 +226,7 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             Zadanie 1 - SZCZEGÓŁOWY PRZEDMIAR:
             Znajdź zapotrzebowanie na: tony stali, beton (m3), szalunki (m2), dach (m2), schody żelbetowe (ilość kompletów/kondygnacji), słupy żelbetowe (łączna długość w mb).
             Podziel ściany osobno w rozbiciu na kondygnacje i rodzaj: nośne parter, nośne piętro, działowe parter, działowe piętro.
+            BARDZO WAŻNE: Licząc metry kwadratowe ścian, ODLICZAJ (wybijaj) TYLKO i WYŁĄCZNIE te otwory okienne, drzwiowe lub garażowe, których powierzchnia wynosi POWYŻEJ 5 m2. Wszystkie otwory o powierzchni 5 m2 i mniejsze całkowicie zignoruj (nie odliczaj ich i wliczaj normalnie do pełnej powierzchni ściany).
             
             Zadanie 2 - ROBOCIZNA:
             Stawki bazowe: Zbrojenie: {c['cena_stal']} PLN/t, Betonowanie: {c['cena_beton']} PLN/m3, Ściany nośne: {c['cena_mur_nosne']} PLN/m2, Ściany działowe: {c['cena_mur_dzialowe']} PLN/m2, Szalowanie: {c['cena_szalunki']} PLN/m2, Dach: {c['cena_dach']} PLN/m2, Schody żelbetowe: {c['cena_schody']} PLN/komplet, Słupy żelbetowe: {c['cena_slupy']} PLN/mb.
@@ -367,3 +356,4 @@ if st.button("Wygeneruj Plan Cięcia (Z załączonych PDF)") and uploaded_files 
                 
         except Exception as e:
             st.error(f"Nie udało się wygenerować planu cięcia. Upewnij się, że PDF zawiera wyraźną tabelę 'Wykaz Zbrojenia'. Błąd: {e}")
+            
