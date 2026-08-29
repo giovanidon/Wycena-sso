@@ -30,7 +30,8 @@ def pobierz_czcionke():
         open(font_path, 'wb').write(r.content)
     return font_path
 
-def generuj_pdf(tekst_raportu, sciezka_logo=None):
+# Dodano argument "tytul", aby pliki miały osobne nagłówki
+def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM PRAC SSO"):
     font_path = pobierz_czcionke()
     pdf = FPDF()
     pdf.add_page()
@@ -51,7 +52,7 @@ def generuj_pdf(tekst_raportu, sciezka_logo=None):
         pdf.ln(10)
         
     pdf.set_font("DejaVu", size=16)
-    pdf.cell(0, 10, txt="KOSZTORYS I HARMONOGRAM PRAC SSO", ln=True, align='C')
+    pdf.cell(0, 10, txt=tytul, ln=True, align='C')
     pdf.ln(10)
     
     pdf.set_font("DejaVu", size=10)
@@ -142,10 +143,8 @@ with st.sidebar:
                     """
                     response_ceny = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_ceny)
                     
-                    # Generowanie znaczników programistycznie, by uniknąć błędów przy kopiowaniu kodu
                     znacznik = chr(96) * 3
                     json_str = response_ceny.text.replace(znacznik + "json", "").replace(znacznik, "").strip()
-                    
                     nowe_ceny = json.loads(json_str)
                     
                     for klucz in nowe_ceny:
@@ -208,7 +207,7 @@ uploaded_files = st.file_uploader("", type=['pdf'], accept_multiple_files=True)
 
 # GŁÓWNY PRZYCISK: WYCENA
 if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
-    with st.spinner("Tworzenie wyceny i generowanie pliku PDF..."):
+    with st.spinner("Tworzenie wyceny i generowanie plików PDF..."):
         try:
             client = genai.Client(api_key=api_key)
             pliki_do_ai = []
@@ -228,59 +227,104 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             instrukcja = f"""
             Jesteś doświadczonym kosztorysantem i analitykiem rynku budowlanego. Przeanalizuj ZAŁĄCZONE PROJEKTY BUDOWLANE (PDF). Inwestycja: Stan Surowy Otwarty (SSO), województwo {wybrane_woj} (mnożnik regionalny: {mnoznik}).
             
-            UWAGA FORMATOWANIE: RAPORT TRAFI DO PLIKU PDF. Nie używaj gwiazdek (*), ani krzyżyków (#). Używaj wielkich liter dla głównych NAGŁÓWKÓW. Używaj zwykłych myślników do list.
+            BARDZO WAŻNE - PODZIAŁ DOKUMENTU:
+            Twoja odpowiedź MUSI składać się z dwóch części oddzielonych od siebie dokładnie takim znacznikiem w nowej linii:
+            ===PODZIAL===
+            Zatem schemat odpowiedzi to: [Odpowiedź na Zadanie 1] -> [===PODZIAL===] -> [Odpowiedź na Zadania 2 do 6].
             
-            Zadanie 1 - SZCZEGÓŁOWY PRZEDMIAR:
-            Znajdź zapotrzebowanie na: tony stali, beton (m3), szalunki (m2), dach (m2), schody żelbetowe (ilość kompletów/kondygnacji), słupy żelbetowe (łączna długość w mb), kominy systemowe (łączna długość w mb).
-            Podziel ściany osobno w rozbiciu na kondygnacje i rodzaj: nośne parter, nośne piętro, działowe parter, działowe piętro.
-            BARDZO WAŻNE: Licząc metry kwadratowe ścian, ODLICZAJ (wybijaj) TYLKO i WYŁĄCZNIE te otwory okienne, drzwiowe lub garażowe, których powierzchnia wynosi POWYŻEJ 5 m2. Wszystkie otwory o powierzchni 5 m2 i mniejsze całkowicie zignoruj (nie odliczaj ich i wliczaj normalnie do pełnej powierzchni ściany).
+            Część 1 (przed znacznikiem ===PODZIAL===):
+            Zadanie 1 - ZESTAWIENIE PRZEDMIARÓW (CZYSTA LISTA DO WYDRUKU NA BUDOWĘ):
+            Stwórz czystą listę wszystkich odczytanych z projektu ilości (bez podawania żadnych cen). Musi ona zawierać minimum:
+            - Fundamenty (metry bieżące lub sześcienne)
+            - Ściany nośne parter (m2)
+            - Ściany nośne poddasze/piętro (m2)
+            - Ściany działowe (m2)
+            - Stropy (m2 lub m3)
+            - Dach (m2)
+            - Stal zbrojeniowa (tony)
+            - Beton (m3)
+            - Szalunki (m2)
+            - Schody żelbetowe (sztuki / komplety)
+            - Słupy żelbetowe (mb)
+            - Kominy systemowe (mb)
+            UWAGA DOTYCZĄCE ŚCIAN: Licząc metry kwadratowe ścian, ODLICZAJ (wybijaj) TYLKO te otwory, których powierzchnia wynosi POWYŻEJ 5 m2. Mniejsze całkowicie zignoruj i wlicz do pełnej ściany.
+
+            ===PODZIAL===
             
+            Część 2 (po znaczniku ===PODZIAL=== - dla klienta):
             Zadanie 2 - ROBOCIZNA:
             Stawki bazowe: Zbrojenie: {c['cena_stal']} PLN/t, Betonowanie: {c['cena_beton']} PLN/m3, Ściany nośne: {c['cena_mur_nosne']} PLN/m2, Ściany działowe: {c['cena_mur_dzialowe']} PLN/m2, Szalowanie: {c['cena_szalunki']} PLN/m2, Dach: {c['cena_dach']} PLN/m2, Schody żelbetowe: {c['cena_schody']} PLN/komplet, Słupy żelbetowe: {c['cena_slupy']} PLN/mb, Kominy systemowe: {c['cena_kominy']} PLN/mb.
             Pokaż koszty w rozbiciu. Przemnóż wynik całości przez {mnoznik} i na koniec dodaj {marza}% marży.
             
             Zadanie 3 - MATERIAŁY:
             Stawki bazowe: Stal: {c['mat_stal']} PLN/t, Beton: {c['mat_beton']} PLN/m3, Ściany nośne: {c['mat_mur_nosne']} PLN/m2, Ściany działowe: {c['mat_mur_dzialowe']} PLN/m2, Szalunki: {c['mat_szalunki']} PLN/m2, Dach: {c['mat_dach']} PLN/m2, Schody żelbetowe: {c['mat_schody']} PLN/komplet, Słupy żelbetowe: {c['mat_slupy']} PLN/mb, Kominy systemowe: {c['mat_kominy']} PLN/mb.
-            Pokaż wyraźny podział kosztów i przemnóż je przez {mnoznik}.
+            Pokaż podział kosztów i przemnóż je przez {mnoznik}.
             
             Zadanie 4 - HARMONOGRAM PRAC:
-            Oszacuj dni robocze dla {ekipa} pracowników (8h pracy). Rozbij czas trwania wyraźnie na: fundamenty, ściany nośne (kondygnacjami), stropy, dach, słupy, schody, kominy.
+            Oszacuj dni robocze dla {ekipa} pracowników (8h pracy). Rozbij czas trwania na elementy (fundamenty, stropy itp.).
             
             Zadanie 5 - TRANSZE PŁATNOŚCI:
-            Podziel prace drobno na etapy (np. Ławy, Ściany fundamentowe, Strop itp.). W każdym etapie wyraźnie rozbij: ile to ZALICZKA NA MATERIAŁ, a ile ZAPŁATA ZA ROBOCIZNĘ.
+            Podziel prace na etapy. W każdym etapie wyraźnie rozbij: ile to ZALICZKA NA MATERIAŁ, a ile ZAPŁATA ZA ROBOCIZNĘ.
             
             Zadanie 6 - SYMULACJA SZANS AKCEPTACJI I WIDEŁKI CENOWE:
-            Na podstawie całkowitej wyliczonej kwoty (z marżą), oceń procentową szansę na akceptację tej oferty przez inwestora, traktując ją jako rynkowy wariant bazowy.
-            Następnie stwórz zestawienie wariantów (widełki), pokazując jak zmienią się procentowe szanse na akceptację, gdy wykonawca:
-            - Obniży całkowitą cenę o 5%
-            - Podniesie całkowitą cenę o 5%
-            - Podniesie całkowitą cenę o 10%
-            - Podniesie całkowitą cenę o 20%
-            Przy każdym wariancie podaj nową kwotę całkowitą, nowe szanse procentowe oraz jednozdaniowe uzasadnienie psychologiczne/rynkowe tej zmiany.
+            Oceń procentową szansę na akceptację tej oferty. Zrób symulację: -5%, +5%, +10%, +20% z uzasadnieniem.
             """
 
             zawartosc = pliki_do_ai + [instrukcja]
             odpowiedz = client.models.generate_content(model='gemini-2.5-flash', contents=zawartosc)
+            pelny_tekst = odpowiedz.text
             
+            # Podział wygenerowanego tekstu na podstawie znacznika
+            if "===PODZIAL===" in pelny_tekst:
+                fragmenty = pelny_tekst.split("===PODZIAL===")
+                tekst_przedmiaru = fragmenty[0].strip()
+                tekst_wyceny = fragmenty[1].strip()
+            else:
+                # Awaryjnie, gdyby AI zapomniało wstawić znacznika
+                tekst_przedmiaru = "UWAGA: Brak podziału dokumentu.\n\n" + pelny_tekst
+                tekst_wyceny = pelny_tekst
+
             st.success("Analiza zakończona sukcesem!")
-            st.write(odpowiedz.text)
+            st.write("Wgląd w główny dokument (Wycena):")
+            st.write(tekst_wyceny)
             
-            pdf_path = generuj_pdf(odpowiedz.text, sciezka_do_logo)
+            # Generowanie dwóch osobnych plików PDF
+            pdf_przedmiar_path = generuj_pdf(tekst_przedmiaru, sciezka_do_logo, tytul="ZESTAWIENIE PRZEDMIAROW - DLA EKIPY")
+            pdf_wycena_path = generuj_pdf(tekst_wyceny, sciezka_do_logo, tytul="KOSZTORYS I HARMONOGRAM PRAC SSO")
             
-            with open(pdf_path, "rb") as pdf_file:
-                pdf_bytes = pdf_file.read()
+            with open(pdf_przedmiar_path, "rb") as f_p:
+                pdf_przedmiar_bytes = f_p.read()
+                
+            with open(pdf_wycena_path, "rb") as f_w:
+                pdf_wycena_bytes = f_w.read()
             
-            st.download_button(
-                label="💾 Pobierz raport z wyceną (PDF)",
-                data=pdf_bytes,
-                file_name="Wycena_SSO.pdf",
-                mime="application/pdf"
-            )
+            st.markdown("### 📥 Pobierz wygenerowane pliki PDF")
             
+            # Dwa przyciski w dwóch kolumnach obok siebie
+            btn_col1, btn_col2 = st.columns(2)
+            with btn_col1:
+                st.download_button(
+                    label="📄 Pobierz PRZEDMIAR (dla ekipy)",
+                    data=pdf_przedmiar_bytes,
+                    file_name="Przedmiar_na_budowe.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+            with btn_col2:
+                st.download_button(
+                    label="💰 Pobierz WYCENĘ (dla klienta)",
+                    data=pdf_wycena_bytes,
+                    file_name="Kosztorys_dla_klienta.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+            
+            # Sprzątanie plików z API oraz plików tymczasowych
             for ai_plik in pliki_do_ai:
                 try: client.files.delete(name=ai_plik.name)
                 except: pass
-            os.remove(pdf_path)
+            os.remove(pdf_przedmiar_path)
+            os.remove(pdf_wycena_path)
             for sciezka in sciezki_tymczasowe:
                 os.remove(sciezka)
 
@@ -333,35 +377,19 @@ if st.button("Wygeneruj Plan Cięcia (Z załączonych PDF)") and uploaded_files 
             
             st.success("Pomyślnie wyciągnięto dane z projektu! Oto plan cięcia:")
             
-            # Przechodzimy przez każdą średnicę i uruchamiamy algorytm
             for srednica, elementy in wykaz_stali.items():
                 st.subheader(f"Zbrojenie głównych prętów: ø {srednica} mm")
                 
-                # Rozwijamy słownik na płaską listę elementów
                 plaska_lista = []
                 for pozycja in elementy:
                     plaska_lista.extend([pozycja['dlugosc']] * pozycja['sztuk'])
                 
-                # Uruchamiamy algorytm z Pythona
                 sztangi_wynik = optymalizuj_ciecie_stali(plaska_lista, dl_handlowa)
                 
-                # Wyświetlamy wynik
                 st.write(f"Zapotrzebowanie na pełne pręty handlowe ({dl_handlowa}m): **{len(sztangi_wynik)} szt.** (ok. {len(sztangi_wynik) * dl_handlowa} mb)")
                 
                 with st.expander(f"Pokaż dokładny rozkrój prętów dla ø {srednica}"):
                     for i, sztanga in enumerate(sztangi_wynik):
                         suma_ciecia = sum(sztanga)
                         odpad = dl_handlowa - suma_ciecia
-                        odcinki_tekst = " + ".join([f"{x}m" for x in sztanga])
-                        st.markdown(f"**Pręt {i+1}:** Tniemy na: `{odcinki_tekst}` | Zostaje odpad: **{odpad:.2f}m**")
-            
-            # Usuwamy pliki po robocie
-            for ai_plik in pliki_do_ai:
-                try: client.files.delete(name=ai_plik.name)
-                except: pass
-            for sciezka in sciezki_tymczasowe:
-                os.remove(sciezka)
-                
-        except Exception as e:
-            st.error(f"Nie udało się wygenerować planu cięcia. Upewnij się, że PDF zawiera wyraźną tabelę 'Wykaz Zbrojenia'. Błąd: {e}")
-            
+    
