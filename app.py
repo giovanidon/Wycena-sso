@@ -30,8 +30,6 @@ def init_db():
 def dodaj_wycene(nazwa, woj, przedmiar, harmonogram, wycena):
     conn = sqlite3.connect("baza_wycen.db")
     c = conn.cursor()
-    teraz = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    # Sprawdzamy czy tabela ma odpowiednie kolumny (dla kompatybilności wstecznej z poprzednią wersją bazy)
     c.execute("PRAGMA table_info(archiwum)")
     kolumny = [kol[1] for kol in c.fetchall()]
     if "harmonogram" not in kolumny:
@@ -40,7 +38,7 @@ def dodaj_wycene(nazwa, woj, przedmiar, harmonogram, wycena):
         init_db()
         
     c.execute("INSERT INTO archiwum (data_utworzenia, nazwa_klienta, wojewodztwo, przedmiar, harmonogram, wycena) VALUES (?, ?, ?, ?, ?, ?)", 
-              (teraz, nazwa, woj, przedmiar, harmonogram, wycena))
+              (teraz := datetime.now().strftime("%Y-%m-%d %H:%M:%S"), nazwa, woj, przedmiar, harmonogram, wycena))
     conn.commit()
     conn.close()
 
@@ -55,7 +53,6 @@ def pobierz_wyceny(szukana_fraza=""):
             c.execute("SELECT * FROM archiwum ORDER BY id DESC")
         dane = c.fetchall()
     except sqlite3.OperationalError:
-        # Awaryjna reinicjalizacja, gdyby baza była ze starej wersji
         conn.close()
         init_db()
         dane = []
@@ -69,7 +66,6 @@ def usun_wycene(id_wyceny):
     conn.commit()
     conn.close()
 
-# Inicjalizacja bazy przy starcie
 init_db()
 # ------------------------------------
 
@@ -195,7 +191,7 @@ with st.sidebar:
                         "cena_kominy": 170
                     }}
                     """
-                    response_ceny = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_ceny)
+                    response_ceny = client.models.generate_content(model='gemini-3.6-flash', contents=prompt_ceny)
                     znacznik = chr(96) * 3
                     json_str = response_ceny.text.replace(znacznik + "json", "").replace(znacznik, "").strip()
                     nowe_ceny = json.loads(json_str)
@@ -232,7 +228,7 @@ with st.sidebar:
                         "mat_kominy": 320
                     }}
                     """
-                    response_ceny = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_ceny)
+                    response_ceny = client.models.generate_content(model='gemini-3.6-flash', contents=prompt_ceny)
                     znacznik = chr(96) * 3
                     json_str = response_ceny.text.replace(znacznik + "json", "").replace(znacznik, "").strip()
                     nowe_ceny = json.loads(json_str)
@@ -365,10 +361,9 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             """
 
             zawartosc = pliki_do_ai + [instrukcja]
-            odpowiedz = client.models.generate_content(model='gemini-2.5-flash', contents=zawartosc)
+            odpowiedz = client.models.generate_content(model='gemini-3.6-flash', contents=zawartosc)
             pelny_tekst = odpowiedz.text
             
-            # Bezpieczny podział na 3 części
             if pelny_tekst.count("===PODZIAL===") >= 2:
                 fragmenty = pelny_tekst.split("===PODZIAL===")
                 tekst_przedmiaru = fragmenty[0].strip()
@@ -381,7 +376,6 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
 
             st.success("Analiza zakończona sukcesem!")
             
-            # ZAPIS DO BAZY DANYCH
             dodaj_wycene(nazwa_klienta, wybrane_woj, tekst_przedmiaru, tekst_harmonogramu, tekst_wyceny)
             
             st.write("Wgląd w główny dokument (Wycena dla klienta):")
@@ -479,7 +473,7 @@ if st.button("Wygeneruj Plan Cięcia (Z załączonych PDF)") and uploaded_files 
             """
             
             zawartosc = pliki_do_ai + [prompt_rozboj]
-            odpowiedz_ai = client.models.generate_content(model='gemini-2.5-flash', contents=zawartosc)
+            odpowiedz_ai = client.models.generate_content(model='gemini-3.6-flash', contents=zawartosc)
             
             znacznik = chr(96) * 3
             json_str = odpowiedz_ai.text.replace(znacznik + "json", "").replace(znacznik, "").strip()
@@ -537,7 +531,6 @@ else:
         klient = w[2]
         woj = w[3]
         tekst_przedmiaru_arch = w[4]
-        # Sprawdzamy długość krotki, aby obsłużyć starsze rekordy z bazy bez harmonogramu
         if len(w) >= 6:
             tekst_harmonogramu_arch = w[5]
             tekst_wyceny_arch = w[6]
@@ -557,7 +550,7 @@ else:
             
             st.markdown("---")
             pdf_arch_p = generuj_pdf(tekst_przedmiaru_arch, sciezka_do_logo, tytul=f"ZESTAWIENIE PRZEDMIAROW - {klient}")
-            pdf_arch_h = generuj_pdf(tekst_harmonogram_arch, sciezka_do_logo, tytul=f"HARMONOGRAM PRAC - {klient}")
+            pdf_arch_h = generuj_pdf(tekst_harmonogramu_arch, sciezka_do_logo, tytul=f"HARMONOGRAM PRAC - {klient}")
             pdf_arch_w = generuj_pdf(tekst_wyceny_arch, sciezka_do_logo, tytul=f"KOSZTORYS - {klient}")
             
             with open(pdf_arch_p, "rb") as fp:
