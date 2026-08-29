@@ -115,8 +115,18 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             Szalunki: {mat_szalunki} PLN/m2, Dach: {mat_dach} PLN/m2.
             Przemnóż koszty materiałów przez mnożnik regionalny ({mnoznik}). Podaj wyniki wyraźnie oddzielone od robocizny (również z rozbiciem ścian).
             
-            Zadanie 4 - Harmonogram Prac:
-            Oszacuj liczbę roboczogodzin (R-g) na podstawie norm KNR i przelicz je na dni robocze dla ekipy liczącej {ekipa} osób (8h pracy dziennie).
+            Zadanie 4 - Harmonogram Prac (Szczegółowy!):
+            Oszacuj liczbę roboczogodzin (R-g) na podstawie norm KNR dla poszczególnych etapów.
+            Przelicz je na dni robocze dla ekipy liczącej {ekipa} osób (8h pracy dziennie).
+            BARDZO WAŻNE: Nie wrzucaj czasu do jednego worka. Wypisz wyraźnie, ile dni roboczych dla podanej ekipy zajmie:
+            - Wykonanie fundamentów / płyty
+            - Murowanie ścian nośnych parteru
+            - Murowanie ścian działowych parteru
+            - Wykonanie stropów nad parterem
+            - Murowanie ścian nośnych piętra/poddasza
+            - Murowanie ścian działowych piętra/poddasza
+            - Wykonanie dachu (więźba i pokrycie)
+            Dopiero pod tym szczegółowym wyliczeniem podaj łączny szacowany czas trwania inwestycji.
             
             Zadanie 5 - Szczegółowy Harmonogram Płatności (Transze):
             Rozbij całkowitą kwotę wyceny na bardzo szczegółowe transze. Podziel etapy:
@@ -131,7 +141,7 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             2. KOSZTY ROBOCIZNY (z podziałem)
             3. KOSZTY MATERIAŁÓW (z podziałem)
             4. PODSUMOWANIE CAŁKOWITE (Robocizna + Materiał)
-            5. HARMONOGRAM PRAC
+            5. SZCZEGÓŁOWY HARMONOGRAM PRAC (z podziałem na dniówki)
             6. TRANSZE PŁATNOŚCI
             """
 
@@ -157,3 +167,4 @@ elif not api_key:
     st.warning("Podaj klucz API, aby móc wygenerować wycenę.")
 elif not uploaded_files:
     st.warning("Wgraj co najmniej jeden plik PDF z projektem.")
+                
