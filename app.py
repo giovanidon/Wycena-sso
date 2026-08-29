@@ -117,7 +117,7 @@ with st.sidebar:
                     client = genai.Client(api_key=api_key)
                     prompt_ceny = f"""
                     Jesteś ekspertem budowlanym. Podaj szacunkowe, rynkowe ceny netto (w PLN) za robociznę i materiały dla SSO dla województwa: {wybrane_woj}.
-                    Odpowiedz WYŁĄCZNIE czystym formatem JSON, bez żadnego tekstu przed ani po. Żadnych znaczników ```json.
+                    Odpowiedz WYŁĄCZNIE czystym formatem JSON, bez żadnego tekstu przed ani po. Żadnych znaczników.
                     Zwróć dokładnie taki format:
                     {{
                         "cena_stal": 1600,
@@ -142,5 +142,6 @@ with st.sidebar:
                     """
                     response_ceny = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_ceny)
                     
-                    json_str = response_ceny.text.replace('
+                    # Bezpieczne usunięcie znaczników, aby nie powodowało to błędów parsera Pythona
+                    json_str = response_ceny.text.replace("
                     
