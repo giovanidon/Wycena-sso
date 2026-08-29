@@ -1,4 +1,4 @@
-import streamlit as st
+ import streamlit as st
 from google import genai
 import tempfile
 import os
@@ -394,4 +394,14 @@ if st.button("Wygeneruj Plan Cięcia (Z załączonych PDF)") and uploaded_files 
                         odcinki_tekst = " + ".join([f"{x}m" for x in sztanga])
                         st.markdown(f"**Pręt {i+1}:** Tniemy na: `{odcinki_tekst}` | Zostaje odpad: **{odpad:.2f}m**")
             
-            for ai_plik 
+            for ai_plik in pliki_do_ai:
+                try:
+                    client.files.delete(name=ai_plik.name)
+                except Exception:
+                    pass
+            
+            for sciezka in sciezki_tymczasowe:
+                os.remove(sciezka)
+                
+        except Exception as e:
+            st.error(f"Nie udało się wygenerować planu cięcia. Upewnij się, że PDF zawiera wyraźną tabelę 'Wykaz Zbrojenia'. Błąd: {e}")
