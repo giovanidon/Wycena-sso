@@ -6,8 +6,8 @@ import requests
 from fpdf import FPDF
 
 # Konfiguracja strony
-st.set_page_config(page_title="Wycena SSO - AI", layout="wide")
-st.title("🏗️ Kalkulator Robocizny i Materiałów SSO (Eksport PDF)")
+st.set_page_config(page_title="MS Budownictwo - Kalkulator SSO", layout="wide")
+st.title("🏗️ MS Budownictwo Kalkulator robocizny i materiałów SSO")
 
 # --- Funkcje do obsługi PDF ---
 @st.cache_resource
