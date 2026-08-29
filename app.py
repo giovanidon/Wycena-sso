@@ -367,4 +367,3 @@ if st.button("Wygeneruj Plan Cięcia (Z załączonych PDF)") and uploaded_files 
                 
         except Exception as e:
             st.error(f"Nie udało się wygenerować planu cięcia. Upewnij się, że PDF zawiera wyraźną tabelę 'Wykaz Zbrojenia'. Błąd: {e}")
-            
