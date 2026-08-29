@@ -123,7 +123,7 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
                 pliki_do_ai.append(pdf_plik)
             
             instrukcja = f"""
-            Jesteś doświadczonym kosztorysantem. Przeanalizuj ZAŁĄCZONE PROJEKTY BUDOWLANE (PDF). Inwestycja: Stan Surowy Otwarty (SSO), województwo {wybrane_woj} (mnożnik regionalny: {mnoznik}).
+            Jesteś doświadczonym kosztorysantem i analitykiem rynku budowlanego. Przeanalizuj ZAŁĄCZONE PROJEKTY BUDOWLANE (PDF). Inwestycja: Stan Surowy Otwarty (SSO), województwo {wybrane_woj} (mnożnik regionalny: {mnoznik}).
             
             UWAGA FORMATOWANIE: RAPORT TRAFI DO PLIKU PDF. Nie używaj gwiazdek (*), ani krzyżyków (#). Używaj wielkich liter dla głównych NAGŁÓWKÓW. Używaj zwykłych myślników do list.
             
@@ -144,6 +144,15 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             
             Zadanie 5 - TRANSZE PŁATNOŚCI:
             Podziel prace drobno na etapy (np. Ławy, Ściany fundamentowe, Strop itp.). W każdym etapie wyraźnie rozbij: ile to ZALICZKA NA MATERIAŁ, a ile ZAPŁATA ZA ROBOCIZNĘ.
+            
+            Zadanie 6 - SYMULACJA SZANS AKCEPTACJI I WIDEŁKI CENOWE:
+            Na podstawie całkowitej wyliczonej kwoty (z marżą), oceń procentową szansę na akceptację tej oferty przez inwestora, traktując ją jako rynkowy wariant bazowy.
+            Następnie stwórz zestawienie wariantów (widełki), pokazując jak zmienią się procentowe szanse na akceptację, gdy wykonawca:
+            - Obniży całkowitą cenę o 5%
+            - Podniesie całkowitą cenę o 5%
+            - Podniesie całkowitą cenę o 10%
+            - Podniesie całkowitą cenę o 20%
+            Przy każdym wariancie podaj nową kwotę całkowitą, nowe szanse procentowe oraz jednozdaniowe uzasadnienie psychologiczne/rynkowe tej zmiany.
             """
 
             zawartosc = pliki_do_ai + [instrukcja]
