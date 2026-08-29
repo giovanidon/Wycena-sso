@@ -117,7 +117,7 @@ with st.sidebar:
                     client = genai.Client(api_key=api_key)
                     prompt_ceny = f"""
                     Jesteś ekspertem budowlanym. Podaj szacunkowe, rynkowe ceny netto (w PLN) za robociznę i materiały dla SSO dla województwa: {wybrane_woj}.
-                    Odpowiedz WYŁĄCZNIE czystym formatem JSON, bez żadnego tekstu przed ani po. Żadnych znaczników.
+                    Odpowiedz WYŁĄCZNIE czystym formatem JSON, bez żadnego tekstu przed ani po.
                     Zwróć dokładnie taki format:
                     {{
                         "cena_stal": 1600,
@@ -142,6 +142,226 @@ with st.sidebar:
                     """
                     response_ceny = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_ceny)
                     
-                    # Bezpieczne usunięcie znaczników, aby nie powodowało to błędów parsera Pythona
-                    json_str = response_ceny.text.replace("
+                    # Generowanie znaczników programistycznie, by uniknąć błędów przy kopiowaniu kodu
+                    znacznik = chr(96) * 3
+                    json_str = response_ceny.text.replace(znacznik + "json", "").replace(znacznik, "").strip()
                     
+                    nowe_ceny = json.loads(json_str)
+                    
+                    for klucz in nowe_ceny:
+                        if klucz in st.session_state['ceny']:
+                            st.session_state['ceny'][klucz] = nowe_ceny[klucz]
+                            
+                    st.success("Zaktualizowano cennik!")
+                    st.rerun() 
+                except Exception as e:
+                    st.error(f"Nie udało się pobrać cen automatycznie. Błąd: {e}")
+        else:
+            st.warning("Najpierw podaj klucz API Gemini, aby pobrać ceny.")
+
+    st.subheader("1. Robocizna (PLN netto)")
+    st.session_state['ceny']['cena_stal'] = st.number_input("Robocizna: Zbrojenie (za 1 tonę)", value=st.session_state['ceny']['cena_stal'])
+    st.session_state['ceny']['cena_beton'] = st.number_input("Robocizna: Wylewanie (za 1 m3)", value=st.session_state['ceny']['cena_beton'])
+    st.session_state['ceny']['cena_mur_nosne'] = st.number_input("Robocizna: Ściany NOŚNE (za 1 m2)", value=st.session_state['ceny']['cena_mur_nosne'])
+    st.session_state['ceny']['cena_mur_dzialowe'] = st.number_input("Robocizna: Ściany DZIAŁOWE (za 1 m2)", value=st.session_state['ceny']['cena_mur_dzialowe'])
+    st.session_state['ceny']['cena_szalunki'] = st.number_input("Robocizna: Szalowanie (za 1 m2)", value=st.session_state['ceny']['cena_szalunki'])
+    st.session_state['ceny']['cena_dach'] = st.number_input("Robocizna: Więźba i pokrycie (za 1 m2)", value=st.session_state['ceny']['cena_dach'])
+    st.session_state['ceny']['cena_schody'] = st.number_input("Robocizna: Schody żelbetowe (za komplet)", value=st.session_state['ceny']['cena_schody'])
+    st.session_state['ceny']['cena_slupy'] = st.number_input("Robocizna: Słupy żelbetowe (za 1 mb)", value=st.session_state['ceny']['cena_slupy'])
+    st.session_state['ceny']['cena_kominy'] = st.number_input("Robocizna: Kominy systemowe (za 1 mb)", value=st.session_state['ceny']['cena_kominy'])
+    
+    marza = st.slider("Narzut / Marża wykonawcy (%)", 0, 50, 15)
+    
+    st.subheader("2. Materiały (PLN netto)")
+    st.session_state['ceny']['mat_stal'] = st.number_input("Materiał: Stal zbrojeniowa (za 1 tonę)", value=st.session_state['ceny']['mat_stal'])
+    st.session_state['ceny']['mat_beton'] = st.number_input("Materiał: Beton (za 1 m3)", value=st.session_state['ceny']['mat_beton'])
+    st.session_state['ceny']['mat_mur_nosne'] = st.number_input("Materiał: Bloczki NOŚNE (za 1 m2)", value=st.session_state['ceny']['mat_mur_nosne'])
+    st.session_state['ceny']['mat_mur_dzialowe'] = st.number_input("Materiał: Bloczki DZIAŁOWE (za 1 m2)", value=st.session_state['ceny']['mat_mur_dzialowe'])
+    st.session_state['ceny']['mat_szalunki'] = st.number_input("Materiał: Drewno/sklejka (za 1 m2)", value=st.session_state['ceny']['mat_szalunki'])
+    st.session_state['ceny']['mat_dach'] = st.number_input("Materiał: Więźba + dachówka/blacha (za 1 m2)", value=st.session_state['ceny']['mat_dach'])
+    st.session_state['ceny']['mat_schody'] = st.number_input("Materiał: Schody (za komplet)", value=st.session_state['ceny']['mat_schody'])
+    st.session_state['ceny']['mat_slupy'] = st.number_input("Materiał: Słupy (za 1 mb)", value=st.session_state['ceny']['mat_slupy'])
+    st.session_state['ceny']['mat_kominy'] = st.number_input("Materiał: Kominy systemowe (za 1 mb)", value=st.session_state['ceny']['mat_kominy'])
+
+    st.markdown("---")
+    st.header("Planowanie Czasu")
+    ekipa = st.number_input("Liczba pracowników na budowie", min_value=1, value=3)
+
+# --- Układ nagłówka (Tytuł + wgrane Logo) ---
+sciezka_do_logo = None
+if wgrane_logo:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_logo:
+        tmp_logo.write(wgrane_logo.getvalue())
+        sciezka_do_logo = tmp_logo.name
+    
+    col1, col2 = st.columns([1, 6])
+    with col1:
+        st.image(wgrane_logo, use_container_width=True)
+    with col2:
+        st.title("MS Budownictwo Kalkulator robocizny i materiałów SSO")
+else:
+    st.title("MS Budownictwo Kalkulator robocizny i materiałów SSO")
+
+# 3. Wgrywanie projektów
+st.markdown("### Wgraj projekty konstrukcyjne (PDF)")
+uploaded_files = st.file_uploader("", type=['pdf'], accept_multiple_files=True)
+
+# GŁÓWNY PRZYCISK: WYCENA
+if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
+    with st.spinner("Tworzenie wyceny i generowanie pliku PDF..."):
+        try:
+            client = genai.Client(api_key=api_key)
+            pliki_do_ai = []
+            sciezki_tymczasowe = []
+            
+            for file in uploaded_files:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                    tmp_file.write(file.getvalue())
+                    tmp_file_path = tmp_file.name
+                    sciezki_tymczasowe.append(tmp_file_path)
+
+                pdf_plik = client.files.upload(file=tmp_file_path)
+                pliki_do_ai.append(pdf_plik)
+            
+            c = st.session_state['ceny']
+            
+            instrukcja = f"""
+            Jesteś doświadczonym kosztorysantem i analitykiem rynku budowlanego. Przeanalizuj ZAŁĄCZONE PROJEKTY BUDOWLANE (PDF). Inwestycja: Stan Surowy Otwarty (SSO), województwo {wybrane_woj} (mnożnik regionalny: {mnoznik}).
+            
+            UWAGA FORMATOWANIE: RAPORT TRAFI DO PLIKU PDF. Nie używaj gwiazdek (*), ani krzyżyków (#). Używaj wielkich liter dla głównych NAGŁÓWKÓW. Używaj zwykłych myślników do list.
+            
+            Zadanie 1 - SZCZEGÓŁOWY PRZEDMIAR:
+            Znajdź zapotrzebowanie na: tony stali, beton (m3), szalunki (m2), dach (m2), schody żelbetowe (ilość kompletów/kondygnacji), słupy żelbetowe (łączna długość w mb), kominy systemowe (łączna długość w mb).
+            Podziel ściany osobno w rozbiciu na kondygnacje i rodzaj: nośne parter, nośne piętro, działowe parter, działowe piętro.
+            BARDZO WAŻNE: Licząc metry kwadratowe ścian, ODLICZAJ (wybijaj) TYLKO i WYŁĄCZNIE te otwory okienne, drzwiowe lub garażowe, których powierzchnia wynosi POWYŻEJ 5 m2. Wszystkie otwory o powierzchni 5 m2 i mniejsze całkowicie zignoruj (nie odliczaj ich i wliczaj normalnie do pełnej powierzchni ściany).
+            
+            Zadanie 2 - ROBOCIZNA:
+            Stawki bazowe: Zbrojenie: {c['cena_stal']} PLN/t, Betonowanie: {c['cena_beton']} PLN/m3, Ściany nośne: {c['cena_mur_nosne']} PLN/m2, Ściany działowe: {c['cena_mur_dzialowe']} PLN/m2, Szalowanie: {c['cena_szalunki']} PLN/m2, Dach: {c['cena_dach']} PLN/m2, Schody żelbetowe: {c['cena_schody']} PLN/komplet, Słupy żelbetowe: {c['cena_slupy']} PLN/mb, Kominy systemowe: {c['cena_kominy']} PLN/mb.
+            Pokaż koszty w rozbiciu. Przemnóż wynik całości przez {mnoznik} i na koniec dodaj {marza}% marży.
+            
+            Zadanie 3 - MATERIAŁY:
+            Stawki bazowe: Stal: {c['mat_stal']} PLN/t, Beton: {c['mat_beton']} PLN/m3, Ściany nośne: {c['mat_mur_nosne']} PLN/m2, Ściany działowe: {c['mat_mur_dzialowe']} PLN/m2, Szalunki: {c['mat_szalunki']} PLN/m2, Dach: {c['mat_dach']} PLN/m2, Schody żelbetowe: {c['mat_schody']} PLN/komplet, Słupy żelbetowe: {c['mat_slupy']} PLN/mb, Kominy systemowe: {c['mat_kominy']} PLN/mb.
+            Pokaż wyraźny podział kosztów i przemnóż je przez {mnoznik}.
+            
+            Zadanie 4 - HARMONOGRAM PRAC:
+            Oszacuj dni robocze dla {ekipa} pracowników (8h pracy). Rozbij czas trwania wyraźnie na: fundamenty, ściany nośne (kondygnacjami), stropy, dach, słupy, schody, kominy.
+            
+            Zadanie 5 - TRANSZE PŁATNOŚCI:
+            Podziel prace drobno na etapy (np. Ławy, Ściany fundamentowe, Strop itp.). W każdym etapie wyraźnie rozbij: ile to ZALICZKA NA MATERIAŁ, a ile ZAPŁATA ZA ROBOCIZNĘ.
+            
+            Zadanie 6 - SYMULACJA SZANS AKCEPTACJI I WIDEŁKI CENOWE:
+            Na podstawie całkowitej wyliczonej kwoty (z marżą), oceń procentową szansę na akceptację tej oferty przez inwestora, traktując ją jako rynkowy wariant bazowy.
+            Następnie stwórz zestawienie wariantów (widełki), pokazując jak zmienią się procentowe szanse na akceptację, gdy wykonawca:
+            - Obniży całkowitą cenę o 5%
+            - Podniesie całkowitą cenę o 5%
+            - Podniesie całkowitą cenę o 10%
+            - Podniesie całkowitą cenę o 20%
+            Przy każdym wariancie podaj nową kwotę całkowitą, nowe szanse procentowe oraz jednozdaniowe uzasadnienie psychologiczne/rynkowe tej zmiany.
+            """
+
+            zawartosc = pliki_do_ai + [instrukcja]
+            odpowiedz = client.models.generate_content(model='gemini-2.5-flash', contents=zawartosc)
+            
+            st.success("Analiza zakończona sukcesem!")
+            st.write(odpowiedz.text)
+            
+            pdf_path = generuj_pdf(odpowiedz.text, sciezka_do_logo)
+            
+            with open(pdf_path, "rb") as pdf_file:
+                pdf_bytes = pdf_file.read()
+            
+            st.download_button(
+                label="💾 Pobierz raport z wyceną (PDF)",
+                data=pdf_bytes,
+                file_name="Wycena_SSO.pdf",
+                mime="application/pdf"
+            )
+            
+            for ai_plik in pliki_do_ai:
+                try: client.files.delete(name=ai_plik.name)
+                except: pass
+            os.remove(pdf_path)
+            for sciezka in sciezki_tymczasowe:
+                os.remove(sciezka)
+
+        except Exception as e:
+            st.error(f"Wystąpił błąd podczas analizy: {e}")
+
+st.markdown("---")
+
+# --- NOWA SEKCJA: OPTYMALIZATOR CIĘCIA STALI ---
+st.header("✂️ Optymalizator Cięcia Zbrojenia")
+st.write("Sztuczna inteligencja znajduje wykaz zbrojenia w projekcie, a wbudowany algorytm matematyczny dopasowuje elementy do prętów handlowych, aby zminimalizować odpady.")
+
+dl_handlowa = st.number_input("Długość pręta handlowego w hurtowni (metry)", min_value=6.0, max_value=15.0, value=12.0, step=1.0)
+
+if st.button("Wygeneruj Plan Cięcia (Z załączonych PDF)") and uploaded_files and api_key:
+    with st.spinner("AI wyciąga tabele zbrojenia z PDF i układa matematyczny plan cięcia (może potrwać kilkanaście sekund)..."):
+        try:
+            client = genai.Client(api_key=api_key)
+            pliki_do_ai = []
+            sciezki_tymczasowe = []
+            
+            for file in uploaded_files:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                    tmp_file.write(file.getvalue())
+                    tmp_file_path = tmp_file.name
+                    sciezki_tymczasowe.append(tmp_file_path)
+
+                pdf_plik = client.files.upload(file=tmp_file_path)
+                pliki_do_ai.append(pdf_plik)
+            
+            prompt_rozboj = """
+            Jesteś inżynierem budownictwa. Przeszukaj załączone projekty konstrukcyjne (PDF).
+            Znajdź tabelę "Wykaz Zbrojenia" lub zestawienie stali.
+            Zgrupuj wszystkie wypisane pręty zbrojeniowe na podstawie ich ŚREDNICY (np. fi 12, fi 16).
+            Zwróć wynik WYŁĄCZNIE jako czysty JSON w poniższym formacie:
+            {
+              "12": [ {"dlugosc": 4.50, "sztuk": 12}, {"dlugosc": 2.10, "sztuk": 8} ],
+              "16": [ {"dlugosc": 5.20, "sztuk": 4} ]
+            }
+            Kluczowe: Długość ("dlugosc") musi być w METRACH (jeśli projekt podaje w cm, podziel przez 100). Odpowiedz TYLKO i wyłącznie tekstem JSON.
+            """
+            
+            zawartosc = pliki_do_ai + [prompt_rozboj]
+            odpowiedz_ai = client.models.generate_content(model='gemini-2.5-flash', contents=zawartosc)
+            
+            znacznik = chr(96) * 3
+            json_str = odpowiedz_ai.text.replace(znacznik + "json", "").replace(znacznik, "").strip()
+            
+            wykaz_stali = json.loads(json_str)
+            
+            st.success("Pomyślnie wyciągnięto dane z projektu! Oto plan cięcia:")
+            
+            # Przechodzimy przez każdą średnicę i uruchamiamy algorytm
+            for srednica, elementy in wykaz_stali.items():
+                st.subheader(f"Zbrojenie głównych prętów: ø {srednica} mm")
+                
+                # Rozwijamy słownik na płaską listę elementów
+                plaska_lista = []
+                for pozycja in elementy:
+                    plaska_lista.extend([pozycja['dlugosc']] * pozycja['sztuk'])
+                
+                # Uruchamiamy algorytm z Pythona
+                sztangi_wynik = optymalizuj_ciecie_stali(plaska_lista, dl_handlowa)
+                
+                # Wyświetlamy wynik
+                st.write(f"Zapotrzebowanie na pełne pręty handlowe ({dl_handlowa}m): **{len(sztangi_wynik)} szt.** (ok. {len(sztangi_wynik) * dl_handlowa} mb)")
+                
+                with st.expander(f"Pokaż dokładny rozkrój prętów dla ø {srednica}"):
+                    for i, sztanga in enumerate(sztangi_wynik):
+                        suma_ciecia = sum(sztanga)
+                        odpad = dl_handlowa - suma_ciecia
+                        odcinki_tekst = " + ".join([f"{x}m" for x in sztanga])
+                        st.markdown(f"**Pręt {i+1}:** Tniemy na: `{odcinki_tekst}` | Zostaje odpad: **{odpad:.2f}m**")
+            
+            # Usuwamy pliki po robocie
+            for ai_plik in pliki_do_ai:
+                try: client.files.delete(name=ai_plik.name)
+                except: pass
+            for sciezka in sciezki_tymczasowe:
+                os.remove(sciezka)
+                
+        except Exception as e:
+            st.error(f"Nie udało się wygenerować planu cięcia. Upewnij się, że PDF zawiera wyraźną tabelę 'Wykaz Zbrojenia'. Błąd: {e}")
+            
