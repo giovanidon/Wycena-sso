@@ -91,6 +91,14 @@ def pobierz_czcionke():
         open(font_path, 'wb').write(r.content)
     return font_path
 
+def czysc_tekst_dla_pdf(tekst):
+    """Zamienia polskie znaki na bezpieczne dla kodowania PDF"""
+    polskie = {'ą': 'a', 'ć': 'c', 'ę': 'e', 'ł': 'l', 'ń': 'n', 'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z',
+               'Ą': 'A', 'Ć': 'C', 'Ę': 'E', 'Ł': 'L', 'Ń': 'N', 'Ó': 'O', 'Ś': 'S', 'Ź': 'Z', 'Ż': 'Z'}
+    for pl, en in polskie.items():
+        tekst = tekst.replace(pl, en)
+    return tekst
+
 def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM PRAC SSO"):
     font_path = pobierz_czcionke()
     pdf = FPDF()
@@ -112,14 +120,14 @@ def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM
         pdf.ln(10)
         
     pdf.set_font("DejaVu", size=16)
-    pdf.cell(0, 10, txt=tytul, ln=True, align='C')
+    pdf.cell(0, 10, txt=czysc_tekst_dla_pdf(tytul), ln=True, align='C')
     pdf.ln(10)
     
     pdf.set_font("DejaVu", size=10)
     czysty_tekst = tekst_raportu.replace('**', '').replace('##', '').replace('#', '')
     
     for line in czysty_tekst.split('\n'):
-        pdf.multi_cell(0, 6, txt=line)
+        pdf.multi_cell(0, 6, txt=czysc_tekst_dla_pdf(line))
         
     pdf_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     pdf.output(pdf_file.name)
@@ -133,7 +141,7 @@ def wywolaj_gemini_z_retry(client, model, contents, max_prob=3):
         except Exception as e:
             if "503" in str(e) or "UNAVAILABLE" in str(e):
                 if proba < max_prob:
-                    time.sleep(3 * proba) # Czekaj dłużej z każdą próbą
+                    time.sleep(3 * proba)
                     continue
             raise e
 # -------------------------------------------------------------------
@@ -395,7 +403,7 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             st.write(tekst_wyceny)
             
             pdf_przedmiar_path = generuj_pdf(tekst_przedmiaru, sciezka_do_logo, tytul="ZESTAWIENIE PRZEDMIAROW - DLA EKIPY")
-            pdf_harmonogram_path = generuj_pdf(tekst_harmonogramu, sciezka_do_logo, tytul=f"HARMONOGRAM PRAC ({ekipa} PRACOWNIKÓW)")
+            pdf_harmonogram_path = generuj_pdf(tekst_harmonogramu, sciezka_do_logo, tytul=f"HARMONOGRAM PRAC ({ekipa} PRACOWNIKOW)")
             pdf_wycena_path = generuj_pdf(tekst_wyceny, sciezka_do_logo, tytul="KOSZTORYS I OFERTA - DLA KLIENTA")
             
             with open(pdf_przedmiar_path, "rb") as f_p:
