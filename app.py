@@ -125,7 +125,8 @@ if wgrane_logo:
     # Wyświetl w aplikacji na górze (kolumny: lewa mniejsza na logo, prawa większa na tytuł)
     col1, col2 = st.columns([1, 6])
     with col1:
-        st.image(wgrane_logo, use_column_width=True)
+        # ZMIANA: użycie use_container_width=True zamiast use_column_width=True
+        st.image(wgrane_logo, use_container_width=True)
     with col2:
         st.title("MS Budownictwo Kalkulator robocizny i materiałów SSO")
 else:
@@ -192,7 +193,7 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             st.success("Analiza zakończona sukcesem!")
             st.write(odpowiedz.text)
             
-            # Generowanie pliku PDF, przekazujemy ścieżkę do wgranego logo!
+            # Generowanie pliku PDF, przekazujemy ścieżkę do wgranego logo
             pdf_path = generuj_pdf(odpowiedz.text, sciezka_do_logo)
             
             with open(pdf_path, "rb") as pdf_file:
