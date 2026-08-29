@@ -41,15 +41,18 @@ if st.button("Generuj Wycenę Robocizny") and uploaded_files and api_key:
             pliki_do_ai = []
             sciezki_tymczasowe = []
             
+            # Przetwarzanie każdego wgranego pliku
             for file in uploaded_files:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
                     tmp_file.write(file.getvalue())
                     tmp_file_path = tmp_file.name
                     sciezki_tymczasowe.append(tmp_file_path)
 
+                # Przesłanie pliku do AI
                 pdf_plik = client.files.upload(file=tmp_file_path)
                 pliki_do_ai.append(pdf_plik)
             
+            # Instrukcja główna
             instrukcja = f"""
             Jesteś doświadczonym kosztorysantem budowlanym i inżynierem. 
             Przeanalizuj ZAŁĄCZONE PROJEKTY BUDOWLANE (PDF). Traktuj je jako jedną całość inwestycji. 
@@ -69,11 +72,23 @@ if st.button("Generuj Wycenę Robocizny") and uploaded_files and api_key:
             """
 
             zawartosc = pliki_do_ai + [instrukcja]
+            
+            # Wywołanie modelu
             odpowiedz = client.models.generate_content(model='gemini-3.6-flash', contents=zawartosc)
             
+            # Wyświetlenie wyniku na ekranie
             st.success("Analiza zakończona sukcesem!")
             st.write(odpowiedz.text)
             
+            # PRZYCISK DO POBIERANIA - nowa funkcja
+            st.download_button(
+                label="💾 Pobierz raport z wyceną (Plik tekstowy)",
+                data=odpowiedz.text,
+                file_name="Wycena_SSO.txt",
+                mime="text/plain"
+            )
+            
+            # Usuwanie plików tymczasowych
             for sciezka in sciezki_tymczasowe:
                 os.remove(sciezka)
 
