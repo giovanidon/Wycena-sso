@@ -274,13 +274,11 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             odpowiedz = client.models.generate_content(model='gemini-2.5-flash', contents=zawartosc)
             pelny_tekst = odpowiedz.text
             
-            # Podział wygenerowanego tekstu na podstawie znacznika
             if "===PODZIAL===" in pelny_tekst:
                 fragmenty = pelny_tekst.split("===PODZIAL===")
                 tekst_przedmiaru = fragmenty[0].strip()
                 tekst_wyceny = fragmenty[1].strip()
             else:
-                # Awaryjnie, gdyby AI zapomniało wstawić znacznika
                 tekst_przedmiaru = "UWAGA: Brak podziału dokumentu.\n\n" + pelny_tekst
                 tekst_wyceny = pelny_tekst
 
@@ -288,7 +286,6 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             st.write("Wgląd w główny dokument (Wycena):")
             st.write(tekst_wyceny)
             
-            # Generowanie dwóch osobnych plików PDF
             pdf_przedmiar_path = generuj_pdf(tekst_przedmiaru, sciezka_do_logo, tytul="ZESTAWIENIE PRZEDMIAROW - DLA EKIPY")
             pdf_wycena_path = generuj_pdf(tekst_wyceny, sciezka_do_logo, tytul="KOSZTORYS I HARMONOGRAM PRAC SSO")
             
@@ -300,7 +297,6 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             
             st.markdown("### 📥 Pobierz wygenerowane pliki PDF")
             
-            # Dwa przyciski w dwóch kolumnach obok siebie
             btn_col1, btn_col2 = st.columns(2)
             with btn_col1:
                 st.download_button(
@@ -319,12 +315,15 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
                     use_container_width=True
                 )
             
-            # Sprzątanie plików z API oraz plików tymczasowych
             for ai_plik in pliki_do_ai:
-                try: client.files.delete(name=ai_plik.name)
-                except: pass
+                try:
+                    client.files.delete(name=ai_plik.name)
+                except Exception:
+                    pass
+            
             os.remove(pdf_przedmiar_path)
             os.remove(pdf_wycena_path)
+            
             for sciezka in sciezki_tymczasowe:
                 os.remove(sciezka)
 
@@ -392,4 +391,7 @@ if st.button("Wygeneruj Plan Cięcia (Z załączonych PDF)") and uploaded_files 
                     for i, sztanga in enumerate(sztangi_wynik):
                         suma_ciecia = sum(sztanga)
                         odpad = dl_handlowa - suma_ciecia
-    
+                        odcinki_tekst = " + ".join([f"{x}m" for x in sztanga])
+                        st.markdown(f"**Pręt {i+1}:** Tniemy na: `{odcinki_tekst}` | Zostaje odpad: **{odpad:.2f}m**")
+            
+            for ai_plik 
