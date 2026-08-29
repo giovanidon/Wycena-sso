@@ -3,15 +3,26 @@ from google import genai
 import tempfile
 import os
 import requests
+import json
 from fpdf import FPDF
 
 # Konfiguracja strony
 st.set_page_config(page_title="MS Budownictwo - Kalkulator SSO", layout="wide")
 
+# --- Inicjalizacja domyślnych cen w pamięci aplikacji (session_state) ---
+if 'ceny' not in st.session_state:
+    st.session_state['ceny'] = {
+        'cena_stal': 1500, 'cena_beton': 120, 'cena_mur_nosne': 80,
+        'cena_mur_dzialowe': 60, 'cena_szalunki': 70, 'cena_dach': 150,
+        'cena_schody': 3000, 'cena_slupy': 150,
+        'mat_stal': 3500, 'mat_beton': 350, 'mat_mur_nosne': 120,
+        'mat_mur_dzialowe': 80, 'mat_szalunki': 50, 'mat_dach': 250,
+        'mat_schody': 2500, 'mat_slupy': 120
+    }
+
 # --- Funkcje do obsługi PDF ---
 @st.cache_resource
 def pobierz_czcionke():
-    """Pobiera czcionkę obsługującą polskie znaki do generowania PDF."""
     font_path = "DejaVuSans_v2.ttf"
     if not os.path.exists(font_path):
         url = "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/master/ttf/DejaVuSans.ttf"
@@ -24,15 +35,12 @@ def generuj_pdf(tekst_raportu, sciezka_logo=None):
     pdf = FPDF()
     pdf.add_page()
     
-    # Obsługa polskich znaków
     pdf.add_font("DejaVu", "", font_path, uni=True)
     pdf.set_font("DejaVu", size=11)
     
-    # Dodawanie wgranego logo, jeśli zostało przesłane
     if sciezka_logo and os.path.exists(sciezka_logo):
         pdf.image(sciezka_logo, x=10, y=8, w=40)
         pdf.ln(25)
-    # Zapasowe sprawdzanie lokalnego pliku, jeśli nie wgrano przez aplikację
     elif os.path.exists("logo.png"):
         pdf.image("logo.png", x=10, y=8, w=40)
         pdf.ln(25)
@@ -42,15 +50,11 @@ def generuj_pdf(tekst_raportu, sciezka_logo=None):
     else:
         pdf.ln(10)
         
-    # Tytuł
     pdf.set_font("DejaVu", size=16)
     pdf.cell(0, 10, txt="KOSZTORYS I HARMONOGRAM PRAC SSO", ln=True, align='C')
     pdf.ln(10)
     
-    # Treść właściwa
     pdf.set_font("DejaVu", size=10)
-    
-    # Czyszczenie tekstu z ewentualnych znaczków Markdown, by PDF był ładny
     czysty_tekst = tekst_raportu.replace('**', '').replace('##', '').replace('#', '')
     
     for line in czysty_tekst.split('\n'):
@@ -67,7 +71,6 @@ if "GEMINI_API_KEY" in st.secrets:
 else:
     api_key = st.text_input("Wprowadź swój klucz API Gemini:", type="password")
 
-# Słownik z mnożnikami regionalnymi
 mnozniki_woj = {
     "Mazowieckie": 1.15, "Małopolskie": 1.08, "Pomorskie": 1.08, "Dolnośląskie": 1.06,
     "Wielkopolskie": 1.05, "Śląskie": 1.04, "Zachodniopomorskie": 1.02, "Łódzkie": 1.00,
@@ -85,54 +88,98 @@ with st.sidebar:
     wybrane_woj = st.selectbox("Wybierz województwo", list(mnozniki_woj.keys()))
     mnoznik = mnozniki_woj[wybrane_woj]
     st.info(f"Mnożnik regionalny: **{mnoznik}x**")
-
-    st.markdown("---")
-    st.header("1. Cennik Robocizny (PLN netto)")
-    cena_stal = st.number_input("Robocizna: Zbrojenie (za 1 tonę)", value=1500)
-    cena_beton = st.number_input("Robocizna: Wylewanie (za 1 m3)", value=120)
-    cena_mur_nosne = st.number_input("Robocizna: Ściany NOŚNE (za 1 m2)", value=80)
-    cena_mur_dzialowe = st.number_input("Robocizna: Ściany DZIAŁOWE (za 1 m2)", value=60)
-    cena_szalunki = st.number_input("Robocizna: Szalowanie (za 1 m2)", value=70)
-    cena_dach = st.number_input("Robocizna: Więźba i pokrycie (za 1 m2)", value=150)
-    cena_schody = st.number_input("Robocizna: Schody żelbetowe (za komplet/piętro)", value=3000)
-    cena_slupy = st.number_input("Robocizna: Słupy żelbetowe (za 1 mb)", value=150)
-    marza = st.slider("Narzut / Marża wykonawcy (%)", 0, 50, 15)
     
     st.markdown("---")
-    st.header("2. Cennik Materiałów (PLN netto)")
-    mat_stal = st.number_input("Materiał: Stal zbrojeniowa (za 1 tonę)", value=3500)
-    mat_beton = st.number_input("Materiał: Beton (za 1 m3)", value=350)
-    mat_mur_nosne = st.number_input("Materiał: Bloczki NOŚNE (za 1 m2)", value=120)
-    mat_mur_dzialowe = st.number_input("Materiał: Bloczki DZIAŁOWE (za 1 m2)", value=80)
-    mat_szalunki = st.number_input("Materiał: Drewno/sklejka (za 1 m2)", value=50)
-    mat_dach = st.number_input("Materiał: Więźba + dachówka/blacha (za 1 m2)", value=250)
-    mat_schody = st.number_input("Materiał: Schody (beton/stal/szalunek za komplet)", value=2500)
-    mat_slupy = st.number_input("Materiał: Słupy (beton/stal/szalunek za 1 mb)", value=120)
+    st.header("Cennik Budowlany")
+    
+    # Przycisk do automatycznej aktualizacji cen przez AI
+    if st.button("🤖 Aktualizuj ceny rynkowe (AI)"):
+        if api_key:
+            with st.spinner(f"Szukam aktualnych cen rynkowych dla woj. {wybrane_woj}..."):
+                try:
+                    client = genai.Client(api_key=api_key)
+                    prompt_ceny = f"""
+                    Jesteś ekspertem budowlanym. Podaj szacunkowe, rynkowe ceny netto (w PLN) za robociznę i materiały dla SSO dla województwa: {wybrane_woj}.
+                    Odpowiedz WYŁĄCZNIE czystym formatem JSON, bez żadnego tekstu przed ani po. Żadnych znaczników ```json.
+                    Zwróć dokładnie taki format:
+                    {{
+                        "cena_stal": 1600,
+                        "cena_beton": 140,
+                        "cena_mur_nosne": 90,
+                        "cena_mur_dzialowe": 65,
+                        "cena_szalunki": 80,
+                        "cena_dach": 160,
+                        "cena_schody": 3200,
+                        "cena_slupy": 160,
+                        "mat_stal": 3600,
+                        "mat_beton": 380,
+                        "mat_mur_nosne": 130,
+                        "mat_mur_dzialowe": 90,
+                        "mat_szalunki": 60,
+                        "mat_dach": 270,
+                        "mat_schody": 2600,
+                        "mat_slupy": 130
+                    }}
+                    Wszystkie wartości muszą być liczbami całkowitymi.
+                    """
+                    response_ceny = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_ceny)
+                    
+                    # Czyszczenie odpowiedzi na wypadek, gdyby AI dodało znaczniki markdown
+                    json_str = response_ceny.text.replace('```json', '').replace('```', '').strip()
+                    nowe_ceny = json.loads(json_str)
+                    
+                    # Aktualizacja stanu sesji
+                    for klucz in nowe_ceny:
+                        if klucz in st.session_state['ceny']:
+                            st.session_state['ceny'][klucz] = nowe_ceny[klucz]
+                            
+                    st.success("Zaktualizowano cennik!")
+                    st.rerun() # Przeładowuje stronę, aby pokazać nowe wartości
+                except Exception as e:
+                    st.error(f"Nie udało się pobrać cen automatycznie. Błąd: {e}")
+        else:
+            st.warning("Najpierw podaj klucz API Gemini, aby pobrać ceny.")
+
+    st.subheader("1. Robocizna (PLN netto)")
+    st.session_state['ceny']['cena_stal'] = st.number_input("Robocizna: Zbrojenie (za 1 tonę)", value=st.session_state['ceny']['cena_stal'])
+    st.session_state['ceny']['cena_beton'] = st.number_input("Robocizna: Wylewanie (za 1 m3)", value=st.session_state['ceny']['cena_beton'])
+    st.session_state['ceny']['cena_mur_nosne'] = st.number_input("Robocizna: Ściany NOŚNE (za 1 m2)", value=st.session_state['ceny']['cena_mur_nosne'])
+    st.session_state['ceny']['cena_mur_dzialowe'] = st.number_input("Robocizna: Ściany DZIAŁOWE (za 1 m2)", value=st.session_state['ceny']['cena_mur_dzialowe'])
+    st.session_state['ceny']['cena_szalunki'] = st.number_input("Robocizna: Szalowanie (za 1 m2)", value=st.session_state['ceny']['cena_szalunki'])
+    st.session_state['ceny']['cena_dach'] = st.number_input("Robocizna: Więźba i pokrycie (za 1 m2)", value=st.session_state['ceny']['cena_dach'])
+    st.session_state['ceny']['cena_schody'] = st.number_input("Robocizna: Schody żelbetowe (za komplet)", value=st.session_state['ceny']['cena_schody'])
+    st.session_state['ceny']['cena_slupy'] = st.number_input("Robocizna: Słupy żelbetowe (za 1 mb)", value=st.session_state['ceny']['cena_slupy'])
+    
+    marza = st.slider("Narzut / Marża wykonawcy (%)", 0, 50, 15)
+    
+    st.subheader("2. Materiały (PLN netto)")
+    st.session_state['ceny']['mat_stal'] = st.number_input("Materiał: Stal zbrojeniowa (za 1 tonę)", value=st.session_state['ceny']['mat_stal'])
+    st.session_state['ceny']['mat_beton'] = st.number_input("Materiał: Beton (za 1 m3)", value=st.session_state['ceny']['mat_beton'])
+    st.session_state['ceny']['mat_mur_nosne'] = st.number_input("Materiał: Bloczki NOŚNE (za 1 m2)", value=st.session_state['ceny']['mat_mur_nosne'])
+    st.session_state['ceny']['mat_mur_dzialowe'] = st.number_input("Materiał: Bloczki DZIAŁOWE (za 1 m2)", value=st.session_state['ceny']['mat_mur_dzialowe'])
+    st.session_state['ceny']['mat_szalunki'] = st.number_input("Materiał: Drewno/sklejka (za 1 m2)", value=st.session_state['ceny']['mat_szalunki'])
+    st.session_state['ceny']['mat_dach'] = st.number_input("Materiał: Więźba + dachówka/blacha (za 1 m2)", value=st.session_state['ceny']['mat_dach'])
+    st.session_state['ceny']['mat_schody'] = st.number_input("Materiał: Schody (za komplet)", value=st.session_state['ceny']['mat_schody'])
+    st.session_state['ceny']['mat_slupy'] = st.number_input("Materiał: Słupy (za 1 mb)", value=st.session_state['ceny']['mat_slupy'])
 
     st.markdown("---")
     st.header("Planowanie Czasu")
     ekipa = st.number_input("Liczba pracowników na budowie", min_value=1, value=3)
 
-
 # --- Układ nagłówka (Tytuł + wgrane Logo) ---
 sciezka_do_logo = None
 if wgrane_logo:
-    # Zapisz logo tymczasowo, aby przekazać do FPDF
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_logo:
         tmp_logo.write(wgrane_logo.getvalue())
         sciezka_do_logo = tmp_logo.name
     
-    # Wyświetl w aplikacji na górze (kolumny: lewa mniejsza na logo, prawa większa na tytuł)
     col1, col2 = st.columns([1, 6])
     with col1:
-        # ZMIANA: użycie use_container_width=True zamiast use_column_width=True
         st.image(wgrane_logo, use_container_width=True)
     with col2:
         st.title("MS Budownictwo Kalkulator robocizny i materiałów SSO")
 else:
-    # Wyświetl standardowy nagłówek, jeśli nie wgrano logo
     st.title("MS Budownictwo Kalkulator robocizny i materiałów SSO")
-
 
 # 3. Wgrywanie projektów
 st.markdown("### Wgraj projekty konstrukcyjne (PDF)")
@@ -154,6 +201,9 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
                 pdf_plik = client.files.upload(file=tmp_file_path)
                 pliki_do_ai.append(pdf_plik)
             
+            # Pobranie cen z session_state do promptu
+            c = st.session_state['ceny']
+            
             instrukcja = f"""
             Jesteś doświadczonym kosztorysantem i analitykiem rynku budowlanego. Przeanalizuj ZAŁĄCZONE PROJEKTY BUDOWLANE (PDF). Inwestycja: Stan Surowy Otwarty (SSO), województwo {wybrane_woj} (mnożnik regionalny: {mnoznik}).
             
@@ -164,11 +214,11 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             Podziel ściany osobno w rozbiciu na kondygnacje i rodzaj: nośne parter, nośne piętro, działowe parter, działowe piętro.
             
             Zadanie 2 - ROBOCIZNA:
-            Stawki bazowe: Zbrojenie: {cena_stal} PLN/t, Betonowanie: {cena_beton} PLN/m3, Ściany nośne: {cena_mur_nosne} PLN/m2, Ściany działowe: {cena_mur_dzialowe} PLN/m2, Szalowanie: {cena_szalunki} PLN/m2, Dach: {cena_dach} PLN/m2, Schody żelbetowe: {cena_schody} PLN/komplet, Słupy żelbetowe: {cena_slupy} PLN/mb.
+            Stawki bazowe: Zbrojenie: {c['cena_stal']} PLN/t, Betonowanie: {c['cena_beton']} PLN/m3, Ściany nośne: {c['cena_mur_nosne']} PLN/m2, Ściany działowe: {c['cena_mur_dzialowe']} PLN/m2, Szalowanie: {c['cena_szalunki']} PLN/m2, Dach: {c['cena_dach']} PLN/m2, Schody żelbetowe: {c['cena_schody']} PLN/komplet, Słupy żelbetowe: {c['cena_slupy']} PLN/mb.
             Pokaż koszty w rozbiciu. Przemnóż wynik całości przez {mnoznik} i na koniec dodaj {marza}% marży.
             
             Zadanie 3 - MATERIAŁY:
-            Stawki bazowe: Stal: {mat_stal} PLN/t, Beton: {mat_beton} PLN/m3, Ściany nośne: {mat_mur_nosne} PLN/m2, Ściany działowe: {mat_mur_dzialowe} PLN/m2, Szalunki: {mat_szalunki} PLN/m2, Dach: {mat_dach} PLN/m2, Schody żelbetowe: {mat_schody} PLN/komplet, Słupy żelbetowe: {mat_slupy} PLN/mb.
+            Stawki bazowe: Stal: {c['mat_stal']} PLN/t, Beton: {c['mat_beton']} PLN/m3, Ściany nośne: {c['mat_mur_nosne']} PLN/m2, Ściany działowe: {c['mat_mur_dzialowe']} PLN/m2, Szalunki: {c['mat_szalunki']} PLN/m2, Dach: {c['mat_dach']} PLN/m2, Schody żelbetowe: {c['mat_schody']} PLN/komplet, Słupy żelbetowe: {c['mat_slupy']} PLN/mb.
             Pokaż wyraźny podział kosztów i przemnóż je przez {mnoznik}.
             
             Zadanie 4 - HARMONOGRAM PRAC:
@@ -193,7 +243,6 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             st.success("Analiza zakończona sukcesem!")
             st.write(odpowiedz.text)
             
-            # Generowanie pliku PDF, przekazujemy ścieżkę do wgranego logo
             pdf_path = generuj_pdf(odpowiedz.text, sciezka_do_logo)
             
             with open(pdf_path, "rb") as pdf_file:
@@ -206,7 +255,6 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
                 mime="application/pdf"
             )
             
-            # Usuwanie plików tymczasowych
             os.remove(pdf_path)
             for sciezka in sciezki_tymczasowe:
                 os.remove(sciezka)
@@ -219,4 +267,3 @@ elif not api_key:
     st.warning("Podaj klucz API, aby móc wygenerować wycenę.")
 elif not uploaded_files:
     st.warning("Wgraj co najmniej jeden plik PDF z projektem.")
-    
