@@ -7,21 +7,19 @@ from fpdf import FPDF
 
 # Konfiguracja strony
 st.set_page_config(page_title="MS Budownictwo - Kalkulator SSO", layout="wide")
-st.title("🏗️ MS Budownictwo Kalkulator robocizny i materiałów SSO")
 
 # --- Funkcje do obsługi PDF ---
 @st.cache_resource
 def pobierz_czcionke():
     """Pobiera czcionkę obsługującą polskie znaki do generowania PDF."""
-    font_path = "DejaVuSans_v2.ttf" # Zmieniona nazwa, by wymusić świeże pobranie
+    font_path = "DejaVuSans_v2.ttf"
     if not os.path.exists(font_path):
-        # Nowy, niezawodny link bezpośrednio od twórców czcionki
         url = "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/master/ttf/DejaVuSans.ttf"
         r = requests.get(url, allow_redirects=True)
         open(font_path, 'wb').write(r.content)
     return font_path
 
-def generuj_pdf(tekst_raportu):
+def generuj_pdf(tekst_raportu, sciezka_logo=None):
     font_path = pobierz_czcionke()
     pdf = FPDF()
     pdf.add_page()
@@ -30,8 +28,12 @@ def generuj_pdf(tekst_raportu):
     pdf.add_font("DejaVu", "", font_path, uni=True)
     pdf.set_font("DejaVu", size=11)
     
-    # Dodawanie logo, jeśli plik istnieje
-    if os.path.exists("logo.png"):
+    # Dodawanie wgranego logo, jeśli zostało przesłane
+    if sciezka_logo and os.path.exists(sciezka_logo):
+        pdf.image(sciezka_logo, x=10, y=8, w=40)
+        pdf.ln(25)
+    # Zapasowe sprawdzanie lokalnego pliku, jeśli nie wgrano przez aplikację
+    elif os.path.exists("logo.png"):
         pdf.image("logo.png", x=10, y=8, w=40)
         pdf.ln(25)
     elif os.path.exists("logo.jpg"):
@@ -75,6 +77,10 @@ mnozniki_woj = {
 
 # 2. Pasek boczny
 with st.sidebar:
+    st.header("Opcje Wizualne")
+    wgrane_logo = st.file_uploader("Wgraj logo firmy (PNG/JPG)", type=['png', 'jpg', 'jpeg'])
+    
+    st.markdown("---")
     st.header("Lokalizacja Inwestycji")
     wybrane_woj = st.selectbox("Wybierz województwo", list(mnozniki_woj.keys()))
     mnoznik = mnozniki_woj[wybrane_woj]
@@ -107,8 +113,29 @@ with st.sidebar:
     st.header("Planowanie Czasu")
     ekipa = st.number_input("Liczba pracowników na budowie", min_value=1, value=3)
 
+
+# --- Układ nagłówka (Tytuł + wgrane Logo) ---
+sciezka_do_logo = None
+if wgrane_logo:
+    # Zapisz logo tymczasowo, aby przekazać do FPDF
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_logo:
+        tmp_logo.write(wgrane_logo.getvalue())
+        sciezka_do_logo = tmp_logo.name
+    
+    # Wyświetl w aplikacji na górze (kolumny: lewa mniejsza na logo, prawa większa na tytuł)
+    col1, col2 = st.columns([1, 6])
+    with col1:
+        st.image(wgrane_logo, use_column_width=True)
+    with col2:
+        st.title("MS Budownictwo Kalkulator robocizny i materiałów SSO")
+else:
+    # Wyświetl standardowy nagłówek, jeśli nie wgrano logo
+    st.title("MS Budownictwo Kalkulator robocizny i materiałów SSO")
+
+
 # 3. Wgrywanie projektów
-uploaded_files = st.file_uploader("Wgraj projekty konstrukcyjne (PDF)", type=['pdf'], accept_multiple_files=True)
+st.markdown("### Wgraj projekty konstrukcyjne (PDF)")
+uploaded_files = st.file_uploader("", type=['pdf'], accept_multiple_files=True)
 
 if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
     with st.spinner("Tworzenie wyceny i generowanie pliku PDF (może to zająć do kilkunastu sekund)..."):
@@ -160,13 +187,13 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             """
 
             zawartosc = pliki_do_ai + [instrukcja]
-            odpowiedz = client.models.generate_content(model='gemini-3.6-flash', contents=zawartosc)
+            odpowiedz = client.models.generate_content(model='gemini-2.5-flash', contents=zawartosc)
             
             st.success("Analiza zakończona sukcesem!")
             st.write(odpowiedz.text)
             
-            # Generowanie pliku PDF
-            pdf_path = generuj_pdf(odpowiedz.text)
+            # Generowanie pliku PDF, przekazujemy ścieżkę do wgranego logo!
+            pdf_path = generuj_pdf(odpowiedz.text, sciezka_do_logo)
             
             with open(pdf_path, "rb") as pdf_file:
                 pdf_bytes = pdf_file.read()
@@ -182,6 +209,8 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             os.remove(pdf_path)
             for sciezka in sciezki_tymczasowe:
                 os.remove(sciezka)
+            if sciezka_do_logo:
+                os.remove(sciezka_do_logo)
 
         except Exception as e:
             st.error(f"Wystąpił błąd podczas analizy: {e}")
@@ -189,3 +218,4 @@ elif not api_key:
     st.warning("Podaj klucz API, aby móc wygenerować wycenę.")
 elif not uploaded_files:
     st.warning("Wgraj co najmniej jeden plik PDF z projektem.")
+    
