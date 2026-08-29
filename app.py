@@ -4,10 +4,55 @@ import tempfile
 import os
 import requests
 import json
+import sqlite3
+from datetime import datetime
 from fpdf import FPDF
 
 # Konfiguracja strony
 st.set_page_config(page_title="MS Budownictwo - Kalkulator SSO", layout="wide")
+
+# --- FUNKCJE BAZY DANYCH (SQLite) ---
+def init_db():
+    conn = sqlite3.connect("baza_wycen.db")
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS archiwum (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    data_utworzenia TEXT,
+                    nazwa_klienta TEXT,
+                    wojewodztwo TEXT,
+                    przedmiar TEXT,
+                    wycena TEXT
+                )''')
+    conn.commit()
+    conn.close()
+
+def dodaj_wycene(nazwa, woj, przedmiar, wycena):
+    conn = sqlite3.connect("baza_wycen.db")
+    c = conn.cursor()
+    teraz = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    c.execute("INSERT INTO archiwum (data_utworzenia, nazwa_klienta, wojewodztwo, przedmiar, wycena) VALUES (?, ?, ?, ?, ?)", 
+              (teraz, nazwa, woj, przedmiar, wycena))
+    conn.commit()
+    conn.close()
+
+def pobierz_wyceny():
+    conn = sqlite3.connect("baza_wycen.db")
+    c = conn.cursor()
+    c.execute("SELECT * FROM archiwum ORDER BY id DESC")
+    dane = c.fetchall()
+    conn.close()
+    return dane
+
+def usun_wycene(id_wyceny):
+    conn = sqlite3.connect("baza_wycen.db")
+    c = conn.cursor()
+    c.execute("DELETE FROM archiwum WHERE id = ?", (id_wyceny,))
+    conn.commit()
+    conn.close()
+
+# Inicjalizacja bazy przy starcie
+init_db()
+# ------------------------------------
 
 # --- Inicjalizacja domyślnych cen w pamięci aplikacji (session_state) ---
 if 'ceny' not in st.session_state:
@@ -110,9 +155,6 @@ with st.sidebar:
     st.markdown("---")
     st.header("Cennik Budowlany")
     
-    # ---------------------------------------------------------
-    # DWA NIEZALEŻNE PRZYCISKI DO AKTUALIZACJI CEN
-    # ---------------------------------------------------------
     if st.button("👷 Aktualizuj ceny robocizny (AI)"):
         if api_key:
             with st.spinner(f"Szukam aktualnych cen robocizny dla woj. {wybrane_woj}..."):
@@ -135,7 +177,6 @@ with st.sidebar:
                     }}
                     """
                     response_ceny = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_ceny)
-                    
                     znacznik = chr(96) * 3
                     json_str = response_ceny.text.replace(znacznik + "json", "").replace(znacznik, "").strip()
                     nowe_ceny = json.loads(json_str)
@@ -149,7 +190,7 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"Nie udało się pobrać cen automatycznie. Błąd: {e}")
         else:
-            st.warning("Najpierw podaj klucz API Gemini, aby pobrać ceny.")
+            st.warning("Najpierw podaj klucz API Gemini.")
 
     if st.button("🧱 Aktualizuj ceny materiałów (AI)"):
         if api_key:
@@ -173,7 +214,6 @@ with st.sidebar:
                     }}
                     """
                     response_ceny = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_ceny)
-                    
                     znacznik = chr(96) * 3
                     json_str = response_ceny.text.replace(znacznik + "json", "").replace(znacznik, "").strip()
                     nowe_ceny = json.loads(json_str)
@@ -187,8 +227,7 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"Nie udało się pobrać cen automatycznie. Błąd: {e}")
         else:
-            st.warning("Najpierw podaj klucz API Gemini, aby pobrać ceny.")
-    # ---------------------------------------------------------
+            st.warning("Najpierw podaj klucz API Gemini.")
 
     st.subheader("1. Robocizna (PLN netto)")
     st.session_state['ceny']['cena_stal'] = st.number_input("Robocizna: Zbrojenie (za 1 tonę)", value=st.session_state['ceny']['cena_stal'])
@@ -229,12 +268,13 @@ if wgrane_logo:
     with col1:
         st.image(wgrane_logo, use_container_width=True)
     with col2:
-        st.title("MS Budown Kalkulator robocizny i materiałów SSO")
+        st.title("MS Budownictwo Kalkulator robocizny i materiałów SSO")
 else:
     st.title("MS Budownictwo Kalkulator robocizny i materiałów SSO")
 
 # 3. Wgrywanie projektów
 st.markdown("### Wgraj projekty konstrukcyjne (PDF)")
+nazwa_klienta = st.text_input("📇 Nazwa Klienta / Inwestycji (do zapisu w Archiwum)", value="Projekt SSO")
 uploaded_files = st.file_uploader("", type=['pdf'], accept_multiple_files=True)
 
 # GŁÓWNY PRZYCISK: WYCENA
@@ -315,6 +355,10 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
                 tekst_wyceny = pelny_tekst
 
             st.success("Analiza zakończona sukcesem!")
+            
+            # ZAPIS DO BAZY DANYCH
+            dodaj_wycene(nazwa_klienta, wybrane_woj, tekst_przedmiaru, tekst_wyceny)
+            
             st.write("Wgląd w główny dokument (Wycena):")
             st.write(tekst_wyceny)
             
@@ -371,7 +415,7 @@ st.write("Sztuczna inteligencja znajduje wykaz zbrojenia w projekcie, a wbudowan
 dl_handlowa = st.number_input("Długość pręta handlowego w hurtowni (metry)", min_value=6.0, max_value=15.0, value=12.0, step=1.0)
 
 if st.button("Wygeneruj Plan Cięcia (Z załączonych PDF)") and uploaded_files and api_key:
-    with st.spinner("AI wyciąga tabele zbrojenia z PDF i układa matematyczny plan cięcia (może potrwać kilkanaście sekund)..."):
+    with st.spinner("AI wyciąga tabele zbrojenia z PDF i układa matematyczny plan cięcia..."):
         try:
             client = genai.Client(api_key=api_key)
             pliki_do_ai = []
@@ -437,3 +481,31 @@ if st.button("Wygeneruj Plan Cięcia (Z załączonych PDF)") and uploaded_files 
                 
         except Exception as e:
             st.error(f"Nie udało się wygenerować planu cięcia. Upewnij się, że PDF zawiera wyraźną tabelę 'Wykaz Zbrojenia'. Błąd: {e}")
+
+st.markdown("---")
+
+# --- NOWA SEKCJA: ARCHIWUM BAZY DANYCH ---
+st.header("📂 Archiwum Zapisanych Wycen")
+st.write("Tutaj przechowywana jest historia wygenerowanych kosztorysów. Dane trzymane są bezpiecznie w lokalnej bazie.")
+
+dane_wycen = pobierz_wyceny()
+
+if not dane_wycen:
+    st.info("Baza danych jest pusta. Twoje wyceny pojawią się tutaj po ich wygenerowaniu.")
+else:
+    for w in dane_wycen:
+        # w = (id, data_utworzenia, nazwa_klienta, wojewodztwo, przedmiar, wycena)
+        id_rekordu = w[0]
+        data_rekordu = w[1]
+        klient = w[2]
+        woj = w[3]
+        
+        with st.expander(f"📌 {klient} | Utworzono: {data_rekordu} | Województwo: {woj}"):
+            st.markdown("### 📄 Zestawienie Przedmiarów")
+            st.write(w[4])
+            st.markdown("### 💰 Wycena i Harmonogram")
+            st.write(w[5])
+            
+            if st.button("🗑️ Usuń z archiwum", key=f"usun_{id_rekordu}"):
+                usun_wycene(id_rekordu)
+                st.rerun()
