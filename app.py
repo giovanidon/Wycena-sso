@@ -65,6 +65,36 @@ def generuj_pdf(tekst_raportu, sciezka_logo=None):
     return pdf_file.name
 # ------------------------------
 
+# --- ALGORYTM OPTYMALIZACJI CIĘCIA (Matematyka w Pythonie) ---
+def optymalizuj_ciecie_stali(lista_elementow, dlugosc_handlowa=12.0):
+    """
+    Algorytm FFD (First Fit Decreasing) pakujący odcinki na sztangi.
+    lista_elementow to lista floatów (np. [4.5, 4.5, 3.2, 1.5...])
+    """
+    # Sortujemy malejąco - najpierw upychamy najdłuższe odcinki
+    lista_elementow.sort(reverse=True)
+    
+    sztangi = [] # Lista sztang, każda sztanga to lista uciętych na niej elementów
+    
+    for element in lista_elementow:
+        if element > dlugosc_handlowa:
+            continue # Jeśli element jest dłuższy niż sztanga, ignorujemy (błąd projektu)
+            
+        zapakowano = False
+        # Szukamy pierwszej sztangi, na której zmieści się element
+        for sztanga in sztangi:
+            if sum(sztanga) + element <= dlugosc_handlowa:
+                sztanga.append(element)
+                zapakowano = True
+                break
+                
+        # Jeśli nie zmieścił się na żadnej napoczętej, bierzemy nową sztangę
+        if not zapakowano:
+            sztangi.append([element])
+            
+    return sztangi
+# -----------------------------------------------------------
+
 # 1. Konfiguracja API
 if "GEMINI_API_KEY" in st.secrets:
     api_key = st.secrets["GEMINI_API_KEY"]
@@ -92,7 +122,6 @@ with st.sidebar:
     st.markdown("---")
     st.header("Cennik Budowlany")
     
-    # Przycisk do automatycznej aktualizacji cen przez AI
     if st.button("🤖 Aktualizuj ceny rynkowe (AI)"):
         if api_key:
             with st.spinner(f"Szukam aktualnych cen rynkowych dla woj. {wybrane_woj}..."):
@@ -120,21 +149,18 @@ with st.sidebar:
                         "mat_schody": 2600,
                         "mat_slupy": 130
                     }}
-                    Wszystkie wartości muszą być liczbami całkowitymi.
                     """
                     response_ceny = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_ceny)
                     
-                    # Czyszczenie odpowiedzi na wypadek, gdyby AI dodało znaczniki markdown
                     json_str = response_ceny.text.replace('```json', '').replace('```', '').strip()
                     nowe_ceny = json.loads(json_str)
                     
-                    # Aktualizacja stanu sesji
                     for klucz in nowe_ceny:
                         if klucz in st.session_state['ceny']:
                             st.session_state['ceny'][klucz] = nowe_ceny[klucz]
                             
                     st.success("Zaktualizowano cennik!")
-                    st.rerun() # Przeładowuje stronę, aby pokazać nowe wartości
+                    st.rerun() 
                 except Exception as e:
                     st.error(f"Nie udało się pobrać cen automatycznie. Błąd: {e}")
         else:
@@ -185,8 +211,9 @@ else:
 st.markdown("### Wgraj projekty konstrukcyjne (PDF)")
 uploaded_files = st.file_uploader("", type=['pdf'], accept_multiple_files=True)
 
+# GŁÓWNY PRZYCISK: WYCENA
 if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
-    with st.spinner("Tworzenie wyceny i generowanie pliku PDF (może to zająć do kilkunastu sekund)..."):
+    with st.spinner("Tworzenie wyceny i generowanie pliku PDF..."):
         try:
             client = genai.Client(api_key=api_key)
             pliki_do_ai = []
@@ -201,7 +228,6 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
                 pdf_plik = client.files.upload(file=tmp_file_path)
                 pliki_do_ai.append(pdf_plik)
             
-            # Pobranie cen z session_state do promptu
             c = st.session_state['ceny']
             
             instrukcja = f"""
@@ -255,15 +281,90 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
                 mime="application/pdf"
             )
             
+            for ai_plik in pliki_do_ai:
+                try: client.files.delete(name=ai_plik.name)
+                except: pass
             os.remove(pdf_path)
             for sciezka in sciezki_tymczasowe:
                 os.remove(sciezka)
-            if sciezka_do_logo:
-                os.remove(sciezka_do_logo)
 
         except Exception as e:
             st.error(f"Wystąpił błąd podczas analizy: {e}")
-elif not api_key:
-    st.warning("Podaj klucz API, aby móc wygenerować wycenę.")
-elif not uploaded_files:
-    st.warning("Wgraj co najmniej jeden plik PDF z projektem.")
+
+st.markdown("---")
+
+# --- NOWA SEKCJA: OPTYMALIZATOR CIĘCIA STALI ---
+st.header("✂️ Optymalizator Cięcia Zbrojenia")
+st.write("Sztuczna inteligencja znajduje wykaz zbrojenia w projekcie, a wbudowany algorytm matematyczny dopasowuje elementy do prętów handlowych, aby zminimalizować odpady.")
+
+dl_handlowa = st.number_input("Długość pręta handlowego w hurtowni (metry)", min_value=6.0, max_value=15.0, value=12.0, step=1.0)
+
+if st.button("Wygeneruj Plan Cięcia (Z załączonych PDF)") and uploaded_files and api_key:
+    with st.spinner("AI wyciąga tabele zbrojenia z PDF i układa matematyczny plan cięcia (może potrwać kilkanaście sekund)..."):
+        try:
+            client = genai.Client(api_key=api_key)
+            pliki_do_ai = []
+            sciezki_tymczasowe = []
+            
+            for file in uploaded_files:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                    tmp_file.write(file.getvalue())
+                    tmp_file_path = tmp_file.name
+                    sciezki_tymczasowe.append(tmp_file_path)
+
+                pdf_plik = client.files.upload(file=tmp_file_path)
+                pliki_do_ai.append(pdf_plik)
+            
+            prompt_rozboj = """
+            Jesteś inżynierem budownictwa. Przeszukaj załączone projekty konstrukcyjne (PDF).
+            Znajdź tabelę "Wykaz Zbrojenia" lub zestawienie stali.
+            Zgrupuj wszystkie wypisane pręty zbrojeniowe na podstawie ich ŚREDNICY (np. fi 12, fi 16).
+            Zwróć wynik WYŁĄCZNIE jako czysty JSON w poniższym formacie (żadnych znaczników markdown):
+            {
+              "12": [ {"dlugosc": 4.50, "sztuk": 12}, {"dlugosc": 2.10, "sztuk": 8} ],
+              "16": [ {"dlugosc": 5.20, "sztuk": 4} ]
+            }
+            Kluczowe: Długość ("dlugosc") musi być w METRACH (jeśli projekt podaje w cm, podziel przez 100). Odpowiedz TYLKO i wyłącznie tekstem JSON.
+            """
+            
+            zawartosc = pliki_do_ai + [prompt_rozboj]
+            odpowiedz_ai = client.models.generate_content(model='gemini-2.5-flash', contents=zawartosc)
+            
+            # Czyszczenie odpowiedzi i parsowanie JSON
+            json_str = odpowiedz_ai.text.replace('```json', '').replace('```', '').strip()
+            wykaz_stali = json.loads(json_str)
+            
+            st.success("Pomyślnie wyciągnięto dane z projektu! Oto plan cięcia:")
+            
+            # Przechodzimy przez każdą średnicę i uruchamiamy algorytm
+            for srednica, elementy in wykaz_stali.items():
+                st.subheader(f"Zbrojenie głównych prętów: ø {srednica} mm")
+                
+                # Rozwijamy słownik na płaską listę elementów
+                plaska_lista = []
+                for pozycja in elementy:
+                    plaska_lista.extend([pozycja['dlugosc']] * pozycja['sztuk'])
+                
+                # Uruchamiamy algorytm z Pythona
+                sztangi_wynik = optymalizuj_ciecie_stali(plaska_lista, dl_handlowa)
+                
+                # Wyświetlamy wynik
+                st.write(f"Zapotrzebowanie na pełne pręty handlowe ({dl_handlowa}m): **{len(sztangi_wynik)} szt.** (ok. {len(sztangi_wynik) * dl_handlowa} mb)")
+                
+                with st.expander(f"Pokaż dokładny rozkrój prętów dla ø {srednica}"):
+                    for i, sztanga in enumerate(sztangi_wynik):
+                        suma_ciecia = sum(sztanga)
+                        odpad = dl_handlowa - suma_ciecia
+                        odcinki_tekst = " + ".join([f"{x}m" for x in sztanga])
+                        st.markdown(f"**Pręt {i+1}:** Tniemy na: `{odcinki_tekst}` | Zostaje odpad: **{odpad:.2f}m**")
+            
+            # Usuwamy pliki po robocie
+            for ai_plik in pliki_do_ai:
+                try: client.files.delete(name=ai_plik.name)
+                except: pass
+            for sciezka in sciezki_tymczasowe:
+                os.remove(sciezka)
+                
+        except Exception as e:
+            st.error(f"Nie udało się wygenerować planu cięcia. Upewnij się, że PDF zawiera wyraźną tabelę 'Wykaz Zbrojenia'. Błąd: {e}")
+            
