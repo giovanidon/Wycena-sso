@@ -30,7 +30,6 @@ def pobierz_czcionke():
         open(font_path, 'wb').write(r.content)
     return font_path
 
-# Dodano argument "tytul", aby pliki miały osobne nagłówki
 def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM PRAC SSO"):
     font_path = pobierz_czcionke()
     pdf = FPDF()
@@ -111,13 +110,16 @@ with st.sidebar:
     st.markdown("---")
     st.header("Cennik Budowlany")
     
-    if st.button("🤖 Aktualizuj ceny rynkowe (AI)"):
+    # ---------------------------------------------------------
+    # DWA NIEZALEŻNE PRZYCISKI DO AKTUALIZACJI CEN
+    # ---------------------------------------------------------
+    if st.button("👷 Aktualizuj ceny robocizny (AI)"):
         if api_key:
-            with st.spinner(f"Szukam aktualnych cen rynkowych dla woj. {wybrane_woj}..."):
+            with st.spinner(f"Szukam aktualnych cen robocizny dla woj. {wybrane_woj}..."):
                 try:
                     client = genai.Client(api_key=api_key)
                     prompt_ceny = f"""
-                    Jesteś ekspertem budowlanym. Podaj szacunkowe, rynkowe ceny netto (w PLN) za robociznę i materiały dla SSO dla województwa: {wybrane_woj}.
+                    Jesteś ekspertem budowlanym. Podaj szacunkowe, rynkowe ceny netto (w PLN) za SAMĄ ROBOCIZNĘ dla SSO dla województwa: {wybrane_woj}.
                     Odpowiedz WYŁĄCZNIE czystym formatem JSON, bez żadnego tekstu przed ani po.
                     Zwróć dokładnie taki format:
                     {{
@@ -129,7 +131,36 @@ with st.sidebar:
                         "cena_dach": 160,
                         "cena_schody": 3200,
                         "cena_slupy": 160,
-                        "cena_kominy": 170,
+                        "cena_kominy": 170
+                    }}
+                    """
+                    response_ceny = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_ceny)
+                    
+                    znacznik = chr(96) * 3
+                    json_str = response_ceny.text.replace(znacznik + "json", "").replace(znacznik, "").strip()
+                    nowe_ceny = json.loads(json_str)
+                    
+                    for klucz in nowe_ceny:
+                        if klucz in st.session_state['ceny']:
+                            st.session_state['ceny'][klucz] = nowe_ceny[klucz]
+                            
+                    st.success("Zaktualizowano cennik robocizny!")
+                    st.rerun() 
+                except Exception as e:
+                    st.error(f"Nie udało się pobrać cen automatycznie. Błąd: {e}")
+        else:
+            st.warning("Najpierw podaj klucz API Gemini, aby pobrać ceny.")
+
+    if st.button("🧱 Aktualizuj ceny materiałów (AI)"):
+        if api_key:
+            with st.spinner(f"Szukam aktualnych cen materiałów dla woj. {wybrane_woj}..."):
+                try:
+                    client = genai.Client(api_key=api_key)
+                    prompt_ceny = f"""
+                    Jesteś ekspertem budowlanym. Podaj szacunkowe, rynkowe ceny netto (w PLN) za SAME MATERIAŁY dla SSO dla województwa: {wybrane_woj}.
+                    Odpowiedz WYŁĄCZNIE czystym formatem JSON, bez żadnego tekstu przed ani po.
+                    Zwróć dokładnie taki format:
+                    {{
                         "mat_stal": 3600,
                         "mat_beton": 380,
                         "mat_mur_nosne": 130,
@@ -151,12 +182,13 @@ with st.sidebar:
                         if klucz in st.session_state['ceny']:
                             st.session_state['ceny'][klucz] = nowe_ceny[klucz]
                             
-                    st.success("Zaktualizowano cennik!")
+                    st.success("Zaktualizowano cennik materiałów!")
                     st.rerun() 
                 except Exception as e:
                     st.error(f"Nie udało się pobrać cen automatycznie. Błąd: {e}")
         else:
             st.warning("Najpierw podaj klucz API Gemini, aby pobrać ceny.")
+    # ---------------------------------------------------------
 
     st.subheader("1. Robocizna (PLN netto)")
     st.session_state['ceny']['cena_stal'] = st.number_input("Robocizna: Zbrojenie (za 1 tonę)", value=st.session_state['ceny']['cena_stal'])
@@ -197,7 +229,7 @@ if wgrane_logo:
     with col1:
         st.image(wgrane_logo, use_container_width=True)
     with col2:
-        st.title("MS Budownictwo Kalkulator robocizny i materiałów SSO")
+        st.title("MS Budown Kalkulator robocizny i materiałów SSO")
 else:
     st.title("MS Budownictwo Kalkulator robocizny i materiałów SSO")
 
