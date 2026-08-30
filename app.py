@@ -184,7 +184,7 @@ with st.sidebar:
     st.markdown("---")
     st.header("Cennik Budowlany")
     
-    if st.button("👷 Aktualizuj ceny robocizny (AI)"):
+    if st.button("👷 Aktualizuj ceny robocizny (AI)", key="btn_akt_robocizny"):
         if api_key:
             with st.spinner(f"Szukam aktualnych cen robocizny dla woj. {wybrane_woj}..."):
                 try:
@@ -221,7 +221,7 @@ with st.sidebar:
         else:
             st.warning("Najpierw podaj klucz API Gemini.")
 
-    if st.button("🧱 Aktualizuj ceny materiałów (AI)"):
+    if st.button("🧱 Aktualizuj ceny materiałów (AI)", key="btn_akt_materialow"):
         if api_key:
             with st.spinner(f"Szukam aktualnych cen materiałów dla woj. {wybrane_woj}..."):
                 try:
@@ -306,14 +306,44 @@ st.markdown("### Wgraj projekty konstrukcyjne (PDF)")
 nazwa_klienta = st.text_input("📇 Nazwa Klienta / Inwestycji (do zapisu w Archiwum)", value="Projekt SSO")
 uploaded_files = st.file_uploader("", type=['pdf'], accept_multiple_files=True)
 
-# --- NOWOŚĆ: SEKCJA CHATU / ZAPYTAŃ DO PROJEKTU ---
+# --- NOWOŚĆ: SEKCJA CHATU / ZAPYTAŃ DO PROJEKTU (TEKST + GŁOS) ---
 st.markdown("---")
 st.header("💬 Zapytaj o szczegóły projektu (Asystent AI)")
-st.write("Wgraj pliki PDF powyżej i zadaj dowolne konkretne pytanie (np. *'Ile metrów kwadratowych mają ściany nośne parteru?'* lub *'Jaka jest kubatura betonu na fundamenty?'*).")
+st.write("Wpisz pytanie lub użyj mikrofonu, aby zapytać o konkretne ilości z projektu (np. *'Ile metrów mają ściany parteru?'*).")
 
-pytanie_uzytkownika = st.text_input("Wpisz swoje pytanie dotyczące wgranych projektów:")
+# Widget nagrywania głosu w przeglądarce
+audio_nagranie = st.audio_input("🎤 Podyktuj pytanie głosowo")
 
-if st.button("Wyślij pytanie do AI") and uploaded_files and api_key and pytanie_uzytkownika:
+tekst_z_głosu = ""
+if audio_nagranie is not None and api_key:
+    with st.spinner("Transkrybuję Twoją mowę na tekst za pomocą AI..."):
+        try:
+            client = genai.Client(api_key=api_key)
+            # Zapisujemy nagranie audio do pliku tymczasowego
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_audio:
+                tmp_audio.write(audio_nagranie.read())
+                tmp_audio_path = tmp_audio.name
+            
+            audio_file_ref = client.files.upload(file=tmp_audio_path)
+            
+            prompt_transkrypcja = "Zamień tę wypowiedź audio na tekst w języku polskim. Zwróć WYŁĄCZNIE sam przettumaczony/podyktowany tekst pytania, bez żadnych dodatkowych komentarzy."
+            resp_tr = client.models.generate_content(model='gemini-3.6-flash', contents=[audio_file_ref, prompt_transkrypcja])
+            tekst_z_głosu = resp_tr.text.strip()
+            
+            try:
+                client.files.delete(name=audio_file_ref.name)
+            except Exception:
+                pass
+            os.remove(tmp_audio_path)
+            
+            st.info(f"Podyktowane pytanie: **{tekst_z_głosu}**")
+        except Exception as e:
+            st.error(f"Nie udało się przetworzyć nagrania audio: {e}")
+
+# Pole tekstowe (może być wypełnione ręcznie lub podyktowane)
+pytanie_uzytkownika = st.text_input("Wpisz lub sprawdź podyktowane pytanie:", value=tekst_z_głosu, key="input_pytania_chat")
+
+if st.button("Wyślij pytanie do AI", key="btn_wyslij_pytanie") and uploaded_files and api_key and pytanie_uzytkownika:
     with st.spinner("Szukam odpowiedzi w projektach PDF..."):
         try:
             client = genai.Client(api_key=api_key)
@@ -353,15 +383,15 @@ if st.button("Wyślij pytanie do AI") and uploaded_files and api_key and pytanie
                 
         except Exception as e:
             st.error(f"Wystąpił błąd podczas analizy pytania: {e}")
-elif st.button("Wyślij pytanie do AI") and not uploaded_files:
+elif st.button("Wyślij pytanie do AI", key="btn_wyslij_pytanie_warn") and not uploaded_files:
     st.warning("Najpierw wgraj przynajmniej jeden plik PDF z projektem powyżej.")
-elif st.button("Wyślij pytanie do AI") and not pytanie_uzytkownika:
-    st.warning("Wpisz treść pytania w polu powyżej.")
+elif st.button("Wyślij pytanie do AI", key="btn_wyslij_pytanie_warn2") and not pytanie_uzytkownika:
+    st.warning("Wpisz treść pytania lub podyktuj je mikrofonem.")
 
 st.markdown("---")
 
 # GŁÓWNY PRZYCISK: WYCENA
-if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
+if st.button("Generuj Kompleksową Wycenę", key="btn_generuj_wycene") and uploaded_files and api_key:
     with st.spinner("Tworzenie wyceny, harmonogramu i generowanie plików PDF..."):
         try:
             client = genai.Client(api_key=api_key)
@@ -512,7 +542,7 @@ st.write("Sztuczna inteligencja znajduje wykaz zbrojenia w projekcie, a wbudowan
 
 dl_handlowa = st.number_input("Długość pręta handlowego w hurtowni (metry)", min_value=6.0, max_value=15.0, value=12.0, step=1.0)
 
-if st.button("Wygeneruj Plan Cięcia (Z załączonych PDF)") and uploaded_files and api_key:
+if st.button("Wygeneruj Plan Cięcia (Z załączonych PDF)", key="btn_plan_ciecia") and uploaded_files and api_key:
     with st.spinner("AI wyciąga tabele zbrojenia z PDF i układa matematyczny plan cięcia..."):
         try:
             client = genai.Client(api_key=api_key)
