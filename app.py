@@ -94,7 +94,6 @@ def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM
     pdf = FPDF()
     pdf.add_page()
     
-    # Użycie wbudowanej, stabilnej czcionki Helvetica
     pdf.set_font("Helvetica", size=11)
     
     if sciezka_logo and os.path.exists(sciezka_logo):
@@ -368,8 +367,8 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             Zadanie 5 - TRANSZE PŁATNOŚCI:
             Podziel prace na etapy. W każdym etapie wyraźnie rozbij: ile to ZALICZKA NA MATERIAŁ, a ile ZAPŁATA ZA ROBOCIZNĘ.
             
-            Zadanie 6 - SYMULACJA SZANS AKCEPTACJI I WIDEŁKI CENOWE:
-            Oceń procentową szansę na akceptację tej oferty. Zrób symulację: -5%, +5%, +10%, +20% z uzasadnieniem.
+            Zadanie 6 - SYMULACJA SZANS AKCEPTACJI I WIDEŁKI CENOWE ROBOCIZNY:
+            Oceń procentową szansę na akceptację tej oferty **WYŁĄCZNIE na podstawie stawki za robociznę** (z uwzględnieniem Twojej marży wykonawcy). Zrób symulację widełek cenowych wyłącznie dla KWOTY ROBOCIZNY: -5%, +5%, +10%, +20% z uzasadnieniem rynkowym.
             """
 
             zawartosc = pliki_do_ai + [instrukcja]
