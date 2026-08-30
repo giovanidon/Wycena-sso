@@ -89,31 +89,31 @@ def czysc_tekst_dla_pdf(tekst):
         tekst = tekst.replace(pl, en)
     return tekst
 
-# --- Generator PDF ze wbudowaną czcionką (bez błędów pobierania) ---
+# --- Generator PDF w orientacji poziomej (Landscape) z szerokim układem tabel ---
 def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM PRAC SSO"):
-    pdf = FPDF()
+    pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.add_page()
     
-    pdf.set_font("Helvetica", size=10)
+    pdf.set_margins(10, 10, 10)
+    pdf.set_font("Helvetica", size=9)
     
     if sciezka_logo and os.path.exists(sciezka_logo):
-        pdf.image(sciezka_logo, x=10, y=8, w=40)
-        pdf.ln(25)
+        pdf.image(sciezka_logo, x=10, y=8, w=35)
+        pdf.ln(22)
     elif os.path.exists("logo.png"):
-        pdf.image("logo.png", x=10, y=8, w=40)
-        pdf.ln(25)
+        pdf.image("logo.png", x=10, y=8, w=35)
+        pdf.ln(22)
     elif os.path.exists("logo.jpg"):
-        pdf.image("logo.jpg", x=10, y=8, w=40)
-        pdf.ln(25)
+        pdf.image("logo.jpg", x=10, y=8, w=35)
+        pdf.ln(22)
     else:
-        pdf.ln(10)
+        pdf.ln(8)
         
     pdf.set_font("Helvetica", style="B", size=13)
-    pdf.cell(0, 10, txt=czysc_tekst_dla_pdf(tytul), ln=True, align='C')
-    pdf.ln(5)
+    pdf.cell(0, 8, txt=czysc_tekst_dla_pdf(tytul), ln=True, align='C')
+    pdf.ln(4)
     
-    pdf.set_font("Helvetica", size=9)
-    # Usuwamy znaki formatowania markdown tabel, żeby w PDF wyglądały przejrzyście jako wiersze
+    pdf.set_font("Helvetica", size=8)
     czysty_tekst = tekst_raportu.replace('**', '').replace('##', '').replace('#', '').replace('|', ' | ')
     
     for line in czysty_tekst.split('\n'):
