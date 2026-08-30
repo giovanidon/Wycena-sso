@@ -326,47 +326,46 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             c = st.session_state['ceny']
             
             instrukcja = f"""
-            Jesteś doświadczonym kosztorysantem i analitykiem rynku budowlanego. Przeanalizuj ZAŁĄCZONE PROJEKTY BUDOWLANE (PDF). Inwestycja: Stan Surowy Otwarty (SSO), województwo {wybrane_woj} (mnożnik regionalny: {mnoznik}).
+            Jesteś doświadczonym kosztorysantem budowlanym. Przeanalizuj ZAŁĄCZONE PROJEKTY BUDOWLANE (PDF). Inwestycja: Stan Surowy Otwarty (SSO), województwo {wybrane_woj} (mnożnik regionalny: {mnoznik}).
             
-            BARDZO WAŻNE - FORMAT TABELARYCZNY I PODZIAŁ NA 3 CZĘŚCI:
+            BARDZO WAŻNE - MAKSYMALNY SZCZEGÓŁOWY ROZPIS ORAZ TABELE:
             Twoja odpowiedź MUSI składać się z trzech części oddzielonych od siebie dokładnie takim znacznikiem w nowej linii:
             ===PODZIAL===
             Zatem schemat odpowiedzi to: [Część 1] -> [===PODZIAL===] -> [Część 2] -> [===PODZIAL===] -> [Część 3].
             
-            Wszystkie zestawienia i wyceny w Części 1 i Części 3 MUSISZ bezwzględnie przedstawiać w formie CZYTELNYCH TABEL MARKDOWN (używając znaków | oraz -), tak aby dane miały kolumny (np. Pozycja, Element / Kondygnacja, Ilość, Jednostka, Cena jedn., Wartość netto).
+            ZASADA BEZWZGLĘDNA DLA PRZEDMIARU (Część 1) I WYCEN (Część 3):
+            NIGDY nie sumuj elementów na jedną ogólną pozycję typu "ściany nośne ogółem". Każda kondygnacja (Parter, Piętro, Poddasze, Piwnica/Fundamenty) oraz każdy typ ściany (Nośne, Działowe) MUSI być rozpisany w osobnym wierszu tabeli! 
+            Przykładowo w przedmiarze i wycenie robocizny/materiałów musisz osobno pokazać:
+            - Ściany nośne - Parter (m2)
+            - Ściany nośne - Piętro / Poddasze (m2)
+            - Ściany działowe - Parter (m2)
+            - Ściany działowe - Piętro / Poddasze (m2)
+            - Fundamenty - Ławy betonowe (m3)
+            - Fundamenty - Ściany fundamentowe (m2)
+            - Stropy - Płyta stropowa nad parterem (m2 / m3)
+            - Szalunki - osobno fundamenty, osobno stropy, osobno wieńce
+            (Wszystko inne rozbijaj dokładnie w ten sam sposób – kondygnacja po kondygnacji).
             
-            Część 1 (przed pierwszym znacznikiem ===PODZIAL===):
-            Zadanie 1 - ZESTAWIENIE PRZEDMIARÓW (CZYSTA LISTA DO WYDRUKU NA BUDOWĘ):
-            Stwórz szczegółową tabelę przedmiarową, rozbitą na kondygnacje i podkategorie:
-            - Fundamenty (ławy w m3, ściany fundamentowe w m2)
-            - Ściany nośne (parter w m2, piętro/poddasze w m2)
-            - Ściany działowe (parter w m2, piętro/poddasze w m2)
-            - Stropy (płyta stropowa w m2, beton m3)
-            - Dach (więźba i pokrycie w m2)
-            - Stal zbrojeniowa (w podziale na średnice w tonach)
-            - Beton towarowy (w podziale na elementy w m3)
-            - Szalunki (w podziale na elementy w m2)
-            - Schody żelbetowe (komplety)
-            - Słupy żelbetowe (mb)
-            - Kominy systemowe (mb)
-            UWAGA DOTYCZĄCE ŚCIAN: Licząc metry kwadratowe ścian, ODLICZAJ (wybijaj) TYLKO te otwory, których powierzchnia wynosi POWYŻEJ 5 m2. Mniejsze całkowicie zignoruj i wlicz do pełnej ściany.
+            Wszystkie części prezentuj w formie czytelnych **tabel Markdown** (z kolumnami takimi jak: Pozycja, Element / Kondygnacja, Ilość, Jednostka, Cena jedn., Wartość netto).
+            
+            UWAGA DOTYCZĄCE ŚCIAN: Licząc metry kwadratowe ścian, ODLICZAJ (wybijaj) TYLKO te otwory, których powierzchnia jednostkowa wynosi POWYŻEJ 5 m2. Mniejsze całkowicie zignoruj i wlicz do pełnej ściany.
 
             ===PODZIAL===
             
             Część 2 (między pierwszym a drugim znacznikiem ===PODZIAL===):
-            Zadanie 2 - HARMONOGRAM PRAC (DLA EKIPY - PRZEWIDZIANY NA {ekipa} PRACOWNIKÓW):
-            Stwórz szczegółowy harmonogram prac (w formie tabeli lub czytelnej listy) dla ekipy liczącej dokładnie {ekipa} pracowników (8h/dzień). Rozpisz etapy: fundamenty, izolacje, ściany nośne parteru, strop, ściany piętra, konstrukcja dachu, kominy, schody i słupy. Podaj liczbę dni roboczych dla każdego etapu oraz łączny czas.
+            Zadanie 2 - HARMONOGRAM PRAC (DLA EKIPY - PRZEWIDZIANY НА {ekipa} PRACOWNIKÓW):
+            Stwórz szczegółowy harmonogram prac (w formie tabeli) dla ekipy liczącej dokładnie {ekipa} pracowników (8h/dzień), rozpisany na poszczególne kondygnacje i etapy budowy. Podaj liczbę dni roboczych oraz łączny czas.
 
             ===PODZIAL===
             
             Część 3 (po drugim znaczniku ===PODZIAL=== - dla klienta):
-            Zadanie 3 - ROBOCIZNA (W FORMIE SZCZEGÓŁOWEJ TABELI):
+            Zadanie 3 - ROBOCIZNA (SZCZEGÓŁOWA TABELA W ROZPISIE NA KONDYGNACJE):
             Stawki bazowe: Zbrojenie: {c['cena_stal']} PLN/t, Betonowanie: {c['cena_beton']} PLN/m3, Ściany nośne: {c['cena_mur_nosne']} PLN/m2, Ściany działowe: {c['cena_mur_dzialowe']} PLN/m2, Szalowanie: {c['cena_szalunki']} PLN/m2, Dach: {c['cena_dach']} PLN/m2, Schody żelbetowe: {c['cena_schody']} PLN/komplet, Słupy żelbetowe: {c['cena_slupy']} PLN/mb, Kominy systemowe: {c['cena_kominy']} PLN/mb.
-            Przedstaw koszty robocizny w tabeli z kolumnami: Element robót | Ilość | Jedn. | Cena bazowa | Wartość bazowa. Następnie przemnóż całość przez {mnoznik} i dolicz {marza}% marży wykonawcy.
+            Przedstaw szczegółową tabelę kosztów robocizny (z uwzględnieniem parteru, piętra, poddasza osobno). Przemnóż wynik przez {mnoznik} i dolicz {marza}% marży wykonawcy.
             
-            Zadanie 4 - MATERIAŁY (W FORMIE SZCZEGÓŁOWEJ TABELI):
+            Zadanie 4 - MATERIAŁY (SZCZEGÓŁOWA TABELA W ROZPISIE NA KONDYGNACJE):
             Stawki bazowe: Stal: {c['mat_stal']} PLN/t, Beton: {c['mat_beton']} PLN/m3, Ściany nośne: {c['mat_mur_nosne']} PLN/m2, Ściany działowe: {c['mat_mur_dzialowe']} PLN/m2, Szalunki: {c['mat_szalunki']} PLN/m2, Dach: {c['mat_dach']} PLN/m2, Schody żelbetowe: {c['mat_schody']} PLN/komplet, Słupy żelbetowe: {c['mat_slupy']} PLN/mb, Kominy systemowe: {c['mat_kominy']} PLN/mb.
-            Przedstaw koszty materiałów w tabeli z kolumnami: Materiał | Ilość | Jedn. | Cena bazowa | Wartość bazowa. Przemnóż wynik przez {mnoznik}.
+            Przedstaw szczegółową tabelę kosztów materiałowych (z rozbiciem na kondygnacje). Przemnóż wynik przez {mnoznik}.
             
             Zadanie 5 - TRANSZE PŁATNOŚCI:
             Podziel prace na etapy w czytelnej tabeli transz (Etap robót | Zaliczka na materiał | Robocizna | Suma transzy).
