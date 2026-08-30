@@ -399,6 +399,9 @@ if st.button("Generuj Kompleksową Wycenę", key="btn_generuj_wycene") and uploa
             pliki_do_ai = []
             sciezki_tymczasowe = []
             
+            # Pobieramy nazwy wgranych plików, żeby AI mogło je uwzględnić w raporcie
+            nazwy_wgranych_plikow = [f.name for f in uploaded_files]
+            
             for file in uploaded_files:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
                     tmp_file.write(file.getvalue())
@@ -412,11 +415,16 @@ if st.button("Generuj Kompleksową Wycenę", key="btn_generuj_wycene") and uploa
             
             instrukcja = f"""
             Jesteś doświadczonym kosztorysantem budowlanym. Przeanalizuj ZAŁĄCZONE PROJEKTY BUDOWLANE (PDF). Inwestycja: Stan Surowy Otwarty (SSO), województwo {wybrane_woj} (mnożnik regionalny: {mnoznik}).
+            Wgrane pliki źródłowe to: {', '.join(nazwy_wgranych_plikow)}.
             
             BARDZO WAŻNE - MAKSYMALNY SZCZEGÓŁOWY ROZPIS ORAZ TABELE:
             Twoja odpowiedź MUSI składać się z trzech części oddzielonych od siebie dokładnie takim znacznikiem w nowej linii:
             ===PODZIAL===
             Zatem schemat odpowiedzi to: [Część 1] -> [===PODZIAL===] -> [Część 2] -> [===PODZIAL===] -> [Część 3].
+            
+            Część 1 (przed pierwszym znacznikiem ===PODZIAL===):
+            Na samej górze Części 1 umieść wyraźną informację (nagłówek lub sekcję):
+            "ŹRÓDŁA DANYCH (ANALIZOWANE PLIKI PDF):" i wypisz nazwy plików, z których faktycznie pobrano dane: {', '.join(nazwy_wgranych_plikow)}.
             
             ZASADA BEZWZGLĘDNA DLA PRZEDMIARU (Część 1) I WYCEN (Część 3):
             NIGDY nie sumuj elementów na jedną ogólną pozycję typu "ściany nośne ogółem". Każda kondygnacja (Parter, Piętro, Poddasze, Piwnica/Fundamenty) oraz każdy typ ściany (Nośne, Działowe) MUSI być rozpisany w osobnym wierszu tabeli! 
@@ -429,7 +437,6 @@ if st.button("Generuj Kompleksową Wycenę", key="btn_generuj_wycene") and uploa
             - Fundamenty - Ściany fundamentowe (m2)
             - Stropy - Płyta stropowa nad parterem (m2 / m3)
             - Szalunki - osobno fundamenty, osobno stropy, osobno wieńce
-            (Wszystko inne rozbijaj dokładnie w ten sam sposób – kondygnacja po kondygnacji).
             
             Wszystkie części prezentuj w formie czytelnych **tabel Markdown** (z kolumnami takimi jak: Pozycja, Element / Kondygnacja, Ilość, Jednostka, Cena jedn., Wartość netto).
             
