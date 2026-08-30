@@ -81,6 +81,10 @@ if 'ceny' not in st.session_state:
         'mat_schody': 2500, 'mat_slupy': 120, 'mat_kominy': 300
     }
 
+# --- Inicjalizacja tekstu pytania w sesji ---
+if 'tekst_pytania' not in st.session_state:
+    st.session_state['tekst_pytania'] = ""
+
 # --- Funkcja czyszcząca polskie znaki do bezpiecznego formatu PDF ---
 def czysc_tekst_dla_pdf(tekst):
     polskie = {'ą': 'a', 'ć': 'c', 'ę': 'e', 'ł': 'l', 'ń': 'n', 'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z',
@@ -317,7 +321,6 @@ st.write("Wpisz pytanie lub użyj mikrofonu, aby zapytać o konkretne ilości z 
 
 audio_nagranie = st.audio_input("🎤 Podyktuj pytanie głosowo")
 
-tekst_z_głosu = ""
 if audio_nagranie is not None and api_key:
     with st.spinner("Transkrybuję Twoją mowę na tekst za pomocą AI..."):
         try:
@@ -330,64 +333,66 @@ if audio_nagranie is not None and api_key:
             
             prompt_transkrypcja = "Zamień tę wypowiedź audio na tekst w języku polskim. Zwróć WYŁĄCZNIE sam podyktowany tekst pytania, bez żadnych dodatkowych komentarzy."
             resp_tr = client.models.generate_content(model='gemini-3.6-flash', contents=[audio_file_ref, prompt_transkrypcja])
-            tekst_z_głosu = resp_tr.text.strip()
+            st.session_state['tekst_pytania'] = resp_tr.text.strip()
             
             try:
                 client.files.delete(name=audio_file_ref.name)
             except Exception:
                 pass
             os.remove(tmp_audio_path)
-            
-            st.info(f"Podyktowane pytanie: **{tekst_z_głosu}**")
         except Exception as e:
             st.error(f"Nie udało się przetworzyć nagrania audio: {e}")
 
-pytanie_uzytkownika = st.text_input("Wpisz lub sprawdź podyktowane pytanie:", value=tekst_z_głosu, key="input_pytania_chat")
+# Pole tekstowe powiązane bezpośrednio ze stanem sesji
+pytanie_uzytkownika = st.text_input("Wpisz lub sprawdź podyktowane pytanie:", key="tekst_pytania")
 
-if st.button("Wyślij pytanie do AI", key="btn_wyslij_pytanie") and uploaded_files and api_key and pytanie_uzytkownika:
-    with st.spinner("Szukam odpowiedzi w projektach PDF..."):
-        try:
-            client = genai.Client(api_key=api_key)
-            pliki_do_ai = []
-            sciezki_tymczasowe = []
-            
-            for file in uploaded_files:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                    tmp_file.write(file.getvalue())
-                    tmp_file_path = tmp_file.name
-                    sciezki_tymczasowe.append(tmp_file_path)
-
-                pdf_plik = client.files.upload(file=tmp_file_path)
-                pliki_do_ai.append(pdf_plik)
-            
-            prompt_pytanie = f"""
-            Jesteś doświadczonym inżynierem budownictwa i kosztorysantem. Przeanalizuj dokładnie załączone projekty budowlane (PDF).
-            Użytkownik zadaje konkretne pytanie dotyczące tych planów:
-            "{pytanie_uzytkownika}"
-            
-            Odpowiedz w sposób wysoce precyzyjny, rozbijając metry, kubatury lub ilości na poszczególne kondygnacje i elementy (parter, piętro, poddasze, nośne, działowe itp.), jeśli dotyczy to projektu. Używaj tabel lub punktów, aby odpowiedź była maksymalnie czytelna.
-            """
-            
-            zawartosc = pliki_do_ai + [prompt_pytanie]
-            odpowiedz_chat = wywolaj_gemini_z_retry(client, 'gemini-3.6-flash', zawartosc)
-            
-            st.success("Odpowiedź asystenta:")
-            st.markdown(odpowiedz_chat.text)
-            
-            for ai_plik in pliki_do_ai:
-                try:
-                    client.files.delete(name=ai_plik.name)
-                except Exception:
-                    pass
-            for sciezka in sciezki_tymczasowe:
-                os.remove(sciezka)
+if st.button("Wyślij podyktowane pytanie do AI", key="btn_wyslij_pytanie_chat"):
+    if not uploaded_files:
+        st.warning("Najpierw wgraj przynajmniej jeden plik PDF z projektem powyżej.")
+    elif not api_key:
+        st.warning("Najpierw podaj klucz API Gemini.")
+    elif not pytanie_uzytkownika:
+        st.warning("Wpisz treść pytania lub podyktuj je mikrofonem.")
+    else:
+        with st.spinner("Szukam odpowiedzi w projektach PDF..."):
+            try:
+                client = genai.Client(api_key=api_key)
+                pliki_do_ai = []
+                sciezki_tymczasowe = []
                 
-        except Exception as e:
-            st.error(f"Wystąpił błąd podczas analizy pytania: {e}")
-elif st.button("Wyślij pytanie do AI", key="btn_wyslij_pytanie_warn") and not uploaded_files:
-    st.warning("Najpierw wgraj przynajmniej jeden plik PDF z projektem powyżej.")
-elif st.button("Wyślij pytanie do AI", key="btn_wyslij_pytanie_warn2") and not pytanie_uzytkownika:
-    st.warning("Wpisz treść pytania lub podyktuj je mikrofonem.")
+                for file in uploaded_files:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                        tmp_file.write(file.getvalue())
+                        tmp_file_path = tmp_file.name
+                        sciezki_tymczasowe.append(tmp_file_path)
+
+                    pdf_plik = client.files.upload(file=tmp_file_path)
+                    pliki_do_ai.append(pdf_plik)
+                
+                prompt_pytanie = f"""
+                Jesteś doświadczonym inżynierem budownictwa i kosztorysantem. Przeanalizuj dokładnie załączone projekty budowlane (PDF).
+                Użytkownik zadaje konkretne pytanie dotyczące tych planów:
+                "{pytanie_uzytkownika}"
+                
+                Odpowiedz w sposób wysoce precyzyjny, rozbijając metry, kubatury lub ilości na poszczególne kondygnacje i elementy (parter, piętro, poddasze, nośne, działowe itp.), jeśli dotyczy to projektu. Używaj tabel lub punktów, aby odpowiedź była maksymalnie czytelna.
+                """
+                
+                zawartosc = pliki_do_ai + [prompt_pytanie]
+                odpowiedz_chat = wywolaj_gemini_z_retry(client, 'gemini-3.6-flash', zawartosc)
+                
+                st.success("Odpowiedź asystenta:")
+                st.markdown(odpowiedz_chat.text)
+                
+                for ai_plik in pliki_do_ai:
+                    try:
+                        client.files.delete(name=ai_plik.name)
+                    except Exception:
+                        pass
+                for sciezka in sciezki_tymczasowe:
+                    os.remove(sciezka)
+                    
+            except Exception as e:
+                st.error(f"Wystąpił błąd podczas analizy pytania: {e}")
 
 st.markdown("---")
 
@@ -399,7 +404,6 @@ if st.button("Generuj Kompleksową Wycenę", key="btn_generuj_wycene") and uploa
             pliki_do_ai = []
             sciezki_tymczasowe = []
             
-            # Pobieramy nazwy wgranych plików, żeby AI mogło je uwzględnić w raporcie
             nazwy_wgranych_plikow = [f.name for f in uploaded_files]
             
             for file in uploaded_files:
