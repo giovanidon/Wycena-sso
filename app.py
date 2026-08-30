@@ -1,4 +1,4 @@
-import streamlit as st
+     import streamlit as st
 from google import genai
 import tempfile
 import os
@@ -89,13 +89,13 @@ def czysc_tekst_dla_pdf(tekst):
         tekst = tekst.replace(pl, en)
     return tekst
 
-# --- Generator PDF w orientacji poziomej (Landscape) z szerokim układem tabel ---
+# --- Generator PDF w orientacji poziomej (Landscape) z zabezpieczeniem długich linii ---
 def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM PRAC SSO"):
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.add_page()
     
     pdf.set_margins(10, 10, 10)
-    pdf.set_font("Helvetica", size=9)
+    pdf.set_font("Helvetica", size=8)
     
     if sciezka_logo and os.path.exists(sciezka_logo):
         pdf.image(sciezka_logo, x=10, y=8, w=35)
@@ -109,7 +109,7 @@ def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM
     else:
         pdf.ln(8)
         
-    pdf.set_font("Helvetica", style="B", size=13)
+    pdf.set_font("Helvetica", style="B", size=12)
     pdf.cell(0, 8, txt=czysc_tekst_dla_pdf(tytul), ln=True, align='C')
     pdf.ln(4)
     
@@ -119,7 +119,12 @@ def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM
     for line in czysty_tekst.split('\n'):
         if line.strip().startswith('---') or '---' in line:
             continue
-        pdf.multi_cell(0, 5, txt=czysc_tekst_dla_pdf(line))
+        # Zabezpieczenie przed zbyt długimi liniami w tabelach
+        if len(line) > 140:
+            for i in range(0, len(line), 140):
+                pdf.multi_cell(0, 4.5, txt=czysc_tekst_dla_pdf(line[i:i+140]))
+        else:
+            pdf.multi_cell(0, 4.5, txt=czysc_tekst_dla_pdf(line))
         
     pdf_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     pdf.output(pdf_file.name)
@@ -306,12 +311,11 @@ st.markdown("### Wgraj projekty konstrukcyjne (PDF)")
 nazwa_klienta = st.text_input("📇 Nazwa Klienta / Inwestycji (do zapisu w Archiwum)", value="Projekt SSO")
 uploaded_files = st.file_uploader("", type=['pdf'], accept_multiple_files=True)
 
-# --- NOWOŚĆ: SEKCJA CHATU / ZAPYTAŃ DO PROJEKTU (TEKST + GŁOS) ---
+# --- SEKCJA CHATU / ZAPYTAŃ DO PROJEKTU (TEKST + GŁOS) ---
 st.markdown("---")
 st.header("💬 Zapytaj o szczegóły projektu (Asystent AI)")
 st.write("Wpisz pytanie lub użyj mikrofonu, aby zapytać o konkretne ilości z projektu (np. *'Ile metrów mają ściany parteru?'*).")
 
-# Widget nagrywania głosu w przeglądarce
 audio_nagranie = st.audio_input("🎤 Podyktuj pytanie głosowo")
 
 tekst_z_głosu = ""
@@ -319,7 +323,6 @@ if audio_nagranie is not None and api_key:
     with st.spinner("Transkrybuję Twoją mowę na tekst za pomocą AI..."):
         try:
             client = genai.Client(api_key=api_key)
-            # Zapisujemy nagranie audio do pliku tymczasowego
             with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_audio:
                 tmp_audio.write(audio_nagranie.read())
                 tmp_audio_path = tmp_audio.name
@@ -340,7 +343,6 @@ if audio_nagranie is not None and api_key:
         except Exception as e:
             st.error(f"Nie udało się przetworzyć nagrania audio: {e}")
 
-# Pole tekstowe (może być wypełnione ręcznie lub podyktowane)
 pytanie_uzytkownika = st.text_input("Wpisz lub sprawdź podyktowane pytanie:", value=tekst_z_głosu, key="input_pytania_chat")
 
 if st.button("Wyślij pytanie do AI", key="btn_wyslij_pytanie") and uploaded_files and api_key and pytanie_uzytkownika:
