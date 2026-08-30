@@ -1,4 +1,4 @@
-     import streamlit as st
+ import streamlit as st
 from google import genai
 import tempfile
 import os
@@ -119,7 +119,6 @@ def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM
     for line in czysty_tekst.split('\n'):
         if line.strip().startswith('---') or '---' in line:
             continue
-        # Zabezpieczenie przed zbyt długimi liniami w tabelach
         if len(line) > 140:
             for i in range(0, len(line), 140):
                 pdf.multi_cell(0, 4.5, txt=czysc_tekst_dla_pdf(line[i:i+140]))
@@ -329,7 +328,7 @@ if audio_nagranie is not None and api_key:
             
             audio_file_ref = client.files.upload(file=tmp_audio_path)
             
-            prompt_transkrypcja = "Zamień tę wypowiedź audio na tekst w języku polskim. Zwróć WYŁĄCZNIE sam przettumaczony/podyktowany tekst pytania, bez żadnych dodatkowych komentarzy."
+            prompt_transkrypcja = "Zamień tę wypowiedź audio na tekst w języku polskim. Zwróć WYŁĄCZNIE sam podyktowany tekst pytania, bez żadnych dodatkowych komentarzy."
             resp_tr = client.models.generate_content(model='gemini-3.6-flash', contents=[audio_file_ref, prompt_transkrypcja])
             tekst_z_głosu = resp_tr.text.strip()
             
