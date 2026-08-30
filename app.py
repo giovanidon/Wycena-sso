@@ -332,20 +332,21 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             
             Część 1 (przed pierwszym znacznikiem ===PODZIAL===):
             Zadanie 1 - ZESTAWIENIE PRZEDMIARÓW (CZYSTA LISTA DO WYDRUKU NA BUDOWĘ):
-            Stwórz czystą listę wszystkich odczytanych z projektu ilości (bez podawania żadnych cen). Musi ona zawierać minimum:
-            - Fundamenty (metry bieżące lub sześcienne)
-            - Ściany nośne parter (m2)
-            - Ściany nośne poddasze/piętro (m2)
-            - Ściany działowe (m2)
-            - Stropy (m2 lub m3)
-            - Dach (m2)
-            - Stal zbrojeniowa (tony)
-            - Beton (m3)
-            - Szalunki (m2)
-            - Schody żelbetowe (sztuki / komplety)
-            - Słupy żelbetowe (mb)
-            - Kominy systemowe (mb)
-            UWAGA DOTYCZĄCE ŚCIAN: Licząc metry kwadratowe ścian, ODLICZAJ (wybijaj) TYLKO te otwory, których powierzchnia wynosi POWYŻEJ 5 m2. Mniejsze całkowicie zignoruj i wlicz do pełnej ściany.
+            Stwórz WYSOKO SZCZEGÓŁOWĄ i rozbisaną listę wszystkich odczytanych z projektu ilości (bez podawania żadnych cen). Każda kategoria MUSI być rozbita na kondygnacje i elementy składowe (np. ściany nośne osobno na parter, osobno na piętro/poddasze; fundamenty osobno na ławy i ściany fundamentowe; stropy osobno na płytę i wieńce; szalunki osobno na fundamenty, stropy, wieńce i schody itp.).
+            Musi ona zawierać szczegółowy rozpis dla:
+            - Fundamenty (ławy fundamentowe w m3/mb oraz ściany fundamentowe w m2)
+            - Ściany nośne (parter w m2, piętro/poddasze w m2)
+            - Ściany działowe (parter w m2, piętro/poddasze w m2)
+            - Stropy (żelbetowe monolitowe / gęstożebrowe - rozpisane na powierzchnię m2 i kubaturę betonowania m3)
+            - Konstrukcja dachu i pokrycie (m2)
+            - Stal zbrojeniowa (rozbita na poszczególne elementy lub średnice w tonach)
+            - Beton towarowy (rozbity na fundamenty, chudziak, stropy, wieńce, schody w m3)
+            - Szalunki (rozbity na fundamenty, stropy, wieńce, słupy w m2)
+            - Schody żelbetowe (komplety z rozbiciem na bieg parter/piętro)
+            - Słupy żelbetowe (mb z podziałem na kondygnacje)
+            - Kominy systemowe (mb z podziałem na kanały/typ)
+            
+            BARDZO WAŻNA ZASADA DOTYCZĄCA ŚCIAN: Licząc metry kwadratowe ścian, ODLICZAJ (wybijaj) TYLKO te otwory (okna i drzwi), których powierzchnia jednostkowa wynosi POWYŻEJ 5 m2. Mniejsze całkowicie zignoruj i wlicz do pełnej powierzchni ściany.
 
             ===PODZIAL===
             
@@ -356,19 +357,19 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             ===PODZIAL===
             
             Część 3 (po drugim znaczniku ===PODZIAL=== - dla klienta):
-            Zadanie 3 - ROBOCIZNA:
+            Zadanie 3 - ROBOCIZNA (SZCZEGÓŁOWY ROZPIS):
             Stawki bazowe: Zbrojenie: {c['cena_stal']} PLN/t, Betonowanie: {c['cena_beton']} PLN/m3, Ściany nośne: {c['cena_mur_nosne']} PLN/m2, Ściany działowe: {c['cena_mur_dzialowe']} PLN/m2, Szalowanie: {c['cena_szalunki']} PLN/m2, Dach: {c['cena_dach']} PLN/m2, Schody żelbetowe: {c['cena_schody']} PLN/komplet, Słupy żelbetowe: {c['cena_slupy']} PLN/mb, Kominy systemowe: {c['cena_kominy']} PLN/mb.
-            Pokaż koszty w rozbiciu. Przemnóż wynik całości przez {mnoznik} i na koniec dodaj {marza}% marży.
+            Pokaż koszty w rozbiciu na każdy szczegółowy element (z uwzględnieniem parteru, piętra itp.). Przemnóż wynik całości robocizny przez {mnoznik} i na koniec dodaj {marza}% marży wykonawcy.
             
-            Zadanie 4 - MATERIAŁY:
+            Zadanie 4 - MATERIAŁY (SZCZEGÓŁOWY ROZPIS):
             Stawki bazowe: Stal: {c['mat_stal']} PLN/t, Beton: {c['mat_beton']} PLN/m3, Ściany nośne: {c['mat_mur_nosne']} PLN/m2, Ściany działowe: {c['mat_mur_dzialowe']} PLN/m2, Szalunki: {c['mat_szalunki']} PLN/m2, Dach: {c['mat_dach']} PLN/m2, Schody żelbetowe: {c['mat_schody']} PLN/komplet, Słupy żelbetowe: {c['mat_slupy']} PLN/mb, Kominy systemowe: {c['mat_kominy']} PLN/mb.
-            Pokaż podział kosztów i przemnóż je przez {mnoznik}.
+            Pokaż szczegółowy podział kosztów materiałowych i przemnóż je przez {mnoznik}.
             
             Zadanie 5 - TRANSZE PŁATNOŚCI:
             Podziel prace na etapy. W każdym etapie wyraźnie rozbij: ile to ZALICZKA NA MATERIAŁ, a ile ZAPŁATA ZA ROBOCIZNĘ.
             
             Zadanie 6 - SYMULACJA SZANS AKCEPTACJI I WIDEŁKI CENOWE ROBOCIZNY:
-            Oceń procentową szansę na akceptację tej oferty **WYŁĄCZNIE na podstawie stawki za robociznę** (z uwzględnieniem Twojej marży wykonawcy). Zrób symulację widełek cenowych wyłącznie dla KWOTY ROBOCIZNY: -5%, +5%, +10%, +20% z uzasadnieniem rynkowym.
+            Oceń procentową szansę na akceptację tej oferty **WYŁĄCZNIE NA PODSTAWIE KWOTY ROBOCIZNY** (z uwzględnieniem Twojej marży wykonawcy). Zrób symulację widełek cenowych wyłącznie dla wartości robocizny: -5%, +5%, +10%, +20% z uzasadnieniem rynkowym dla regionu.
             """
 
             zawartosc = pliki_do_ai + [instrukcja]
