@@ -329,7 +329,7 @@ if st.button("Wyślij pytanie do AI") and uploaded_files and api_key and pytanie
                 pdf_plik = client.files.upload(file=tmp_file_path)
                 pliki_do_ai.append(pdf_plik)
             
-             prompt_pytanie = f"""
+            prompt_pytanie = f"""
             Jesteś doświadczonym inżynierem budownictwa i kosztorysantem. Przeanalizuj dokładnie załączone projekty budowlane (PDF).
             Użytkownik zadaje konkretne pytanie dotyczące tych planów:
             "{pytanie_uzytkownika}"
