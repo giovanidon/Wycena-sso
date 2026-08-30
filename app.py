@@ -85,15 +85,17 @@ if 'ceny' not in st.session_state:
 if 'tekst_pytania' not in st.session_state:
     st.session_state['tekst_pytania'] = ""
 
-# --- Funkcja czyszcząca polskie znaki do bezpiecznego formatu PDF ---
+# --- Funkcja całkowicie czyszcząca polskie znaki i unicode do bezpiecznego ASCII ---
 def czysc_tekst_dla_pdf(tekst):
     polskie = {'ą': 'a', 'ć': 'c', 'ę': 'e', 'ł': 'l', 'ń': 'n', 'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z',
-               'Ą': 'A', 'Ć': 'C', 'Ę': 'E', 'Ł': 'L', 'Ń': 'N', 'Ó': 'O', 'Ś': 'S', 'Ź': 'Z', 'Ż': 'Z'}
+               'Ą': 'A', 'Ć': 'C', 'Ę': 'E', 'Ł': 'L', 'Ń': 'N', 'Ó': 'O', 'Ś': 'S', 'Ź': 'Z', 'Ż': 'Z',
+               '•': '-', '—': '-', '–': '-'}
     for pl, en in polskie.items():
         tekst = tekst.replace(pl, en)
-    return tekst
+    # Usuwamy wszelkie pozostałe znaki spoza zakresu standardowego ASCII, żeby uniknąć błędów kodowania
+    return tekst.encode('ascii', 'ignore').decode('ascii')
 
-# --- Generator PDF w orientacji poziomej z wyraźnym wypunktowaniem wierszy ---
+# --- Generator PDF w orientacji poziomej odporny na błędy kodowania ---
 def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM PRAC SSO"):
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.add_page()
@@ -126,16 +128,13 @@ def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM
         
         czysta_linia = line_str.replace('**', '').replace('##', '').replace('#', '')
         
-        # Jeśli linia pochodzi z tabeli Markdown (posiada pionowe kreski |), formatujemy ją z myślnikiem jako niezależną pozycję
         if '|' in czysta_linia:
-            # Usuwamy puste kreski i tworzymy czytelną linię z podpunktem
             elementy = [el.strip() for el in czysta_linia.split('|') if el.strip()]
             if not elementy:
                 continue
             czysta_linia = "  - " + " | ".join(elementy)
         else:
-            # Zwykłe nagłówki lub linijki tekstu
-            czysta_linia = "• " + czysta_linia if not czysta_linia.startswith('•') and not czysta_linia.startswith('-') else czysta_linia
+            czysta_linia = "- " + czysta_linia if not czysta_linia.startswith('-') else czysta_linia
 
         if len(czysta_linia) > 160:
             czysta_linia = czysta_linia[:160] + "..."
