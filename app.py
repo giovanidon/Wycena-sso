@@ -306,6 +306,60 @@ st.markdown("### Wgraj projekty konstrukcyjne (PDF)")
 nazwa_klienta = st.text_input("📇 Nazwa Klienta / Inwestycji (do zapisu w Archiwum)", value="Projekt SSO")
 uploaded_files = st.file_uploader("", type=['pdf'], accept_multiple_files=True)
 
+# --- NOWOŚĆ: SEKCJA CHATU / ZAPYTAŃ DO PROJEKTU ---
+st.markdown("---")
+st.header("💬 Zapytaj o szczegóły projektu (Asystent AI)")
+st.write("Wgraj pliki PDF powyżej i zadaj dowolne konkretne pytanie (np. *'Ile metrów kwadratowych mają ściany nośne parteru?'* lub *'Jaka jest kubatura betonu na fundamenty?'*).")
+
+pytanie_uzytkownika = st.text_input("Wpisz swoje pytanie dotyczące wgranych projektów:")
+
+if st.button("Wyślij pytanie do AI") and uploaded_files and api_key and pytanie_uzytkownika:
+    with st.spinner("Szukam odpowiedzi w projektach PDF..."):
+        try:
+            client = genai.Client(api_key=api_key)
+            pliki_do_ai = []
+            sciezki_tymczasowe = []
+            
+            for file in uploaded_files:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                    tmp_file.write(file.getvalue())
+                    tmp_file_path = tmp_file.name
+                    sciezki_tymczasowe.append(tmp_file_path)
+
+                pdf_plik = client.files.upload(file=tmp_file_path)
+                pliki_do_ai.append(pdf_plik)
+            
+             prompt_pytanie = f"""
+            Jesteś doświadczonym inżynierem budownictwa i kosztorysantem. Przeanalizuj dokładnie załączone projekty budowlane (PDF).
+            Użytkownik zadaje konkretne pytanie dotyczące tych planów:
+            "{pytanie_uzytkownika}"
+            
+            Odpowiedz w sposób wysoce precyzyjny, rozbijając metry, kubatury lub ilości na poszczególne kondygnacje i elementy (parter, piętro, poddasze, nośne, działowe itp.), jeśli dotyczy to projektu. Używaj tabel lub punktów, aby odpowiedź była maksymalnie czytelna.
+            """
+            
+            zawartosc = pliki_do_ai + [prompt_pytanie]
+            odpowiedz_chat = wywolaj_gemini_z_retry(client, 'gemini-3.6-flash', zawartosc)
+            
+            st.success("Odpowiedź asystenta:")
+            st.markdown(odpowiedz_chat.text)
+            
+            for ai_plik in pliki_do_ai:
+                try:
+                    client.files.delete(name=ai_plik.name)
+                except Exception:
+                    pass
+            for sciezka in sciezki_tymczasowe:
+                os.remove(sciezka)
+                
+        except Exception as e:
+            st.error(f"Wystąpił błąd podczas analizy pytania: {e}")
+elif st.button("Wyślij pytanie do AI") and not uploaded_files:
+    st.warning("Najpierw wgraj przynajmniej jeden plik PDF z projektem powyżej.")
+elif st.button("Wyślij pytanie do AI") and not pytanie_uzytkownika:
+    st.warning("Wpisz treść pytania w polu powyżej.")
+
+st.markdown("---")
+
 # GŁÓWNY PRZYCISK: WYCENA
 if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
     with st.spinner("Tworzenie wyceny, harmonogramu i generowanie plików PDF..."):
@@ -564,7 +618,6 @@ else:
             
             st.markdown("---")
             
-            # --- POPRAWKA: Przycisk usuwania umieszczony w widocznym miejscu pełnej szerokości ---
             if st.button("🗑️ USUŃ TĘ WYCENĘ Z ARCHIWUM", key=f"btn_usun_{id_rekordu}", use_container_width=True):
                 usun_wycene(id_rekordu)
                 st.success(f"Usunięto wycenę dla: {klient}")
