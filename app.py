@@ -81,21 +81,7 @@ if 'ceny' not in st.session_state:
         'mat_schody': 2500, 'mat_slupy': 120, 'mat_kominy': 300
     }
 
-# --- Funkcje do obsługi PDF i naprawione pobieranie czcionki ---
-@st.cache_resource
-def pobierz_czcionke():
-    font_path = "DejaVuSans_v2.ttf"
-    # Jeśli plik istnieje, ale jest za mały (np. pobrał się błąd), usuwamy go żeby pobrać ponownie
-    if os.path.exists(font_path) and os.path.getsize(font_path) < 10000:
-        os.remove(font_path)
-        
-    if not os.path.exists(font_path):
-        url = "https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans.ttf"
-        r = requests.get(url, allow_redirects=True)
-        with open(font_path, 'wb') as f:
-            f.write(r.content)
-    return font_path
-
+# --- Funkcja czyszcząca polskie znaki do bezpiecznego formatu PDF ---
 def czysc_tekst_dla_pdf(tekst):
     polskie = {'ą': 'a', 'ć': 'c', 'ę': 'e', 'ł': 'l', 'ń': 'n', 'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z',
                'Ą': 'A', 'Ć': 'C', 'Ę': 'E', 'Ł': 'L', 'Ń': 'N', 'Ó': 'O', 'Ś': 'S', 'Ź': 'Z', 'Ż': 'Z'}
@@ -103,13 +89,13 @@ def czysc_tekst_dla_pdf(tekst):
         tekst = tekst.replace(pl, en)
     return tekst
 
+# --- Generator PDF ze wbudowaną czcionką (bez błędów pobierania) ---
 def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM PRAC SSO"):
-    font_path = pobierz_czcionke()
     pdf = FPDF()
     pdf.add_page()
     
-    pdf.add_font("DejaVu", "", font_path, uni=True)
-    pdf.set_font("DejaVu", size=11)
+    # Użycie wbudowanej, stabilnej czcionki Helvetica
+    pdf.set_font("Helvetica", size=11)
     
     if sciezka_logo and os.path.exists(sciezka_logo):
         pdf.image(sciezka_logo, x=10, y=8, w=40)
@@ -123,11 +109,11 @@ def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM
     else:
         pdf.ln(10)
         
-    pdf.set_font("DejaVu", size=16)
+    pdf.set_font("Helvetica", style="B", size=14)
     pdf.cell(0, 10, txt=czysc_tekst_dla_pdf(tytul), ln=True, align='C')
     pdf.ln(10)
     
-    pdf.set_font("DejaVu", size=10)
+    pdf.set_font("Helvetica", size=10)
     czysty_tekst = tekst_raportu.replace('**', '').replace('##', '').replace('#', '')
     
     for line in czysty_tekst.split('\n'):
