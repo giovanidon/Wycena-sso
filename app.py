@@ -93,7 +93,7 @@ def czysc_tekst_dla_pdf(tekst):
         tekst = tekst.replace(pl, en)
     return tekst
 
-# --- Generator PDF w orientacji poziomej (Landscape) z zabezpieczeniem długich linii ---
+# --- Generator PDF w orientacji poziomej z wyraźnym wypunktowaniem wierszy ---
 def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM PRAC SSO"):
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.add_page()
@@ -102,14 +102,14 @@ def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM
     pdf.set_font("Helvetica", size=8)
     
     if sciezka_logo and os.path.exists(sciezka_logo):
-        pdf.image(sciezka_logo, x=10, y=8, w=35)
-        pdf.ln(22)
+        pdf.image(sciezka_logo, x=10, y=8, w=30)
+        pdf.ln(20)
     elif os.path.exists("logo.png"):
-        pdf.image("logo.png", x=10, y=8, w=35)
-        pdf.ln(22)
+        pdf.image("logo.png", x=10, y=8, w=30)
+        pdf.ln(20)
     elif os.path.exists("logo.jpg"):
-        pdf.image("logo.jpg", x=10, y=8, w=35)
-        pdf.ln(22)
+        pdf.image("logo.jpg", x=10, y=8, w=30)
+        pdf.ln(20)
     else:
         pdf.ln(8)
         
@@ -118,16 +118,29 @@ def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM
     pdf.ln(4)
     
     pdf.set_font("Helvetica", size=8)
-    czysty_tekst = tekst_raportu.replace('**', '').replace('##', '').replace('#', '').replace('|', ' | ')
     
-    for line in czysty_tekst.split('\n'):
-        if line.strip().startswith('---') or '---' in line:
+    for line in tekst_raportu.split('\n'):
+        line_str = line.strip()
+        if not line_str or line_str.startswith('---'):
             continue
-        if len(line) > 140:
-            for i in range(0, len(line), 140):
-                pdf.multi_cell(0, 4.5, txt=czysc_tekst_dla_pdf(line[i:i+140]))
+        
+        czysta_linia = line_str.replace('**', '').replace('##', '').replace('#', '')
+        
+        # Jeśli linia pochodzi z tabeli Markdown (posiada pionowe kreski |), formatujemy ją z myślnikiem jako niezależną pozycję
+        if '|' in czysta_linia:
+            # Usuwamy puste kreski i tworzymy czytelną linię z podpunktem
+            elementy = [el.strip() for el in czysta_linia.split('|') if el.strip()]
+            if not elementy:
+                continue
+            czysta_linia = "  - " + " | ".join(elementy)
         else:
-            pdf.multi_cell(0, 4.5, txt=czysc_tekst_dla_pdf(line))
+            # Zwykłe nagłówki lub linijki tekstu
+            czysta_linia = "• " + czysta_linia if not czysta_linia.startswith('•') and not czysta_linia.startswith('-') else czysta_linia
+
+        if len(czysta_linia) > 160:
+            czysta_linia = czysta_linia[:160] + "..."
+            
+        pdf.multi_cell(0, 5, txt=czysc_tekst_dla_pdf(czysta_linia))
         
     pdf_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     pdf.output(pdf_file.name)
@@ -343,7 +356,6 @@ if audio_nagranie is not None and api_key:
         except Exception as e:
             st.error(f"Nie udało się przetworzyć nagrania audio: {e}")
 
-# Pole tekstowe powiązane bezpośrednio ze stanem sesji
 pytanie_uzytkownika = st.text_input("Wpisz lub sprawdź podyktowane pytanie:", key="tekst_pytania")
 
 if st.button("Wyślij podyktowane pytanie do AI", key="btn_wyslij_pytanie_chat"):
