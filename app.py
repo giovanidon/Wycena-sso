@@ -353,7 +353,7 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             ===PODZIAL===
             
             Część 2 (między pierwszym a drugim znacznikiem ===PODZIAL===):
-            Zadanie 2 - HARMONOGRAM PRAC (DLA EKIPY - PRZEWIDZIANY НА {ekipa} PRACOWNIKÓW):
+            Zadanie 2 - HARMONOGRAM PRAC (DLA EKIPY - PRZEWIDZIANY NA {ekipa} PRACOWNIKÓW):
             Stwórz szczegółowy harmonogram prac (w formie tabeli) dla ekipy liczącej dokładnie {ekipa} pracowników (8h/dzień), rozpisany na poszczególne kondygnacje i etapy budowy. Podaj liczbę dni roboczych oraz łączny czas.
 
             ===PODZIAL===
@@ -563,6 +563,15 @@ else:
             st.write(tekst_wyceny_arch)
             
             st.markdown("---")
+            
+            # --- POPRAWKA: Przycisk usuwania umieszczony w widocznym miejscu pełnej szerokości ---
+            if st.button("🗑️ USUŃ TĘ WYCENĘ Z ARCHIWUM", key=f"btn_usun_{id_rekordu}", use_container_width=True):
+                usun_wycene(id_rekordu)
+                st.success(f"Usunięto wycenę dla: {klient}")
+                st.rerun()
+            
+            st.markdown("---")
+            
             pdf_arch_p = generuj_pdf(tekst_przedmiaru_arch, sciezka_do_logo, tytul=f"ZESTAWIENIE PRZEDMIAROW - {klient}")
             pdf_arch_h = generuj_pdf(tekst_harmonogramu_arch, sciezka_do_logo, tytul=f"HARMONOGRAM PRAC - {klient}")
             pdf_arch_w = generuj_pdf(tekst_wyceny_arch, sciezka_do_logo, tytul=f"KOSZTORYS - {klient}")
@@ -574,7 +583,7 @@ else:
             with open(pdf_arch_w, "rb") as fw:
                 bytes_w = fw.read()
                 
-            arch_col1, arch_col2, arch_col3, arch_col4 = st.columns(4)
+            arch_col1, arch_col2, arch_col3 = st.columns(3)
             with arch_col1:
                 st.download_button(
                     label="📄 Przedmiar",
@@ -602,13 +611,6 @@ else:
                     key=f"pobierz_w_{id_rekordu}",
                     use_container_width=True
                 )
-            with arch_col4:
-                if st.button("🗑️ Usuń", key=f"usun_{id_rekordu}", use_container_width=True):
-                    usun_wycene(id_rekordu)
-                    os.remove(pdf_arch_p)
-                    os.remove(pdf_arch_h)
-                    os.remove(pdf_arch_w)
-                    st.rerun()
                     
             try:
                 os.remove(pdf_arch_p)
