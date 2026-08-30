@@ -70,7 +70,7 @@ def usun_wycene(id_wyceny):
 init_db()
 # ------------------------------------
 
-# --- Inicjalizacja trwałego cennika w session_state (zapobiega resetowaniu po odświeżeniu) ---
+# --- Inicjalizacja trwałego cennika w session_state ---
 if 'ceny' not in st.session_state:
     st.session_state['ceny'] = {
         'cena_stal': 1500, 'cena_beton': 120, 'cena_mur_nosne': 80,
@@ -81,14 +81,19 @@ if 'ceny' not in st.session_state:
         'mat_schody': 2500, 'mat_slupy': 120, 'mat_kominy': 300
     }
 
-# --- Funkcje do obsługi PDF ---
+# --- Funkcje do obsługi PDF i naprawione pobieranie czcionki ---
 @st.cache_resource
 def pobierz_czcionke():
     font_path = "DejaVuSans_v2.ttf"
+    # Jeśli plik istnieje, ale jest za mały (np. pobrał się błąd), usuwamy go żeby pobrać ponownie
+    if os.path.exists(font_path) and os.path.getsize(font_path) < 10000:
+        os.remove(font_path)
+        
     if not os.path.exists(font_path):
-        url = "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/master/ttf/DejaVuSans.ttf"
+        url = "https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans.ttf"
         r = requests.get(url, allow_redirects=True)
-        open(font_path, 'wb').write(r.content)
+        with open(font_path, 'wb') as f:
+            f.write(r.content)
     return font_path
 
 def czysc_tekst_dla_pdf(tekst):
@@ -138,7 +143,8 @@ def wywolaj_gemini_z_retry(client, model, contents, max_prob=3):
         try:
             return client.models.generate_content(model=model, contents=contents)
         except Exception as e:
-            if "503" in str(e) or "UNAVAILABLE" in str(e):
+            err_str = str(e)
+            if "503" in err_str or "UNAVAILABLE" in err_str or "429" in err_str:
                 if proba < max_prob:
                     time.sleep(3 * proba)
                     continue
