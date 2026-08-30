@@ -94,7 +94,7 @@ def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM
     pdf = FPDF()
     pdf.add_page()
     
-    pdf.set_font("Helvetica", size=11)
+    pdf.set_font("Helvetica", size=10)
     
     if sciezka_logo and os.path.exists(sciezka_logo):
         pdf.image(sciezka_logo, x=10, y=8, w=40)
@@ -108,15 +108,18 @@ def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM
     else:
         pdf.ln(10)
         
-    pdf.set_font("Helvetica", style="B", size=14)
+    pdf.set_font("Helvetica", style="B", size=13)
     pdf.cell(0, 10, txt=czysc_tekst_dla_pdf(tytul), ln=True, align='C')
-    pdf.ln(10)
+    pdf.ln(5)
     
-    pdf.set_font("Helvetica", size=10)
-    czysty_tekst = tekst_raportu.replace('**', '').replace('##', '').replace('#', '')
+    pdf.set_font("Helvetica", size=9)
+    # Usuwamy znaki formatowania markdown tabel, żeby w PDF wyglądały przejrzyście jako wiersze
+    czysty_tekst = tekst_raportu.replace('**', '').replace('##', '').replace('#', '').replace('|', ' | ')
     
     for line in czysty_tekst.split('\n'):
-        pdf.multi_cell(0, 6, txt=czysc_tekst_dla_pdf(line))
+        if line.strip().startswith('---') or '---' in line:
+            continue
+        pdf.multi_cell(0, 5, txt=czysc_tekst_dla_pdf(line))
         
     pdf_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     pdf.output(pdf_file.name)
@@ -325,51 +328,51 @@ if st.button("Generuj Kompleksową Wycenę") and uploaded_files and api_key:
             instrukcja = f"""
             Jesteś doświadczonym kosztorysantem i analitykiem rynku budowlanego. Przeanalizuj ZAŁĄCZONE PROJEKTY BUDOWLANE (PDF). Inwestycja: Stan Surowy Otwarty (SSO), województwo {wybrane_woj} (mnożnik regionalny: {mnoznik}).
             
-            BARDZO WAŻNE - PODZIAŁ DOKUMENTU NA 3 CZĘŚCI:
+            BARDZO WAŻNE - FORMAT TABELARYCZNY I PODZIAŁ NA 3 CZĘŚCI:
             Twoja odpowiedź MUSI składać się z trzech części oddzielonych od siebie dokładnie takim znacznikiem w nowej linii:
             ===PODZIAL===
             Zatem schemat odpowiedzi to: [Część 1] -> [===PODZIAL===] -> [Część 2] -> [===PODZIAL===] -> [Część 3].
             
+            Wszystkie zestawienia i wyceny w Części 1 i Części 3 MUSISZ bezwzględnie przedstawiać w formie CZYTELNYCH TABEL MARKDOWN (używając znaków | oraz -), tak aby dane miały kolumny (np. Pozycja, Element / Kondygnacja, Ilość, Jednostka, Cena jedn., Wartość netto).
+            
             Część 1 (przed pierwszym znacznikiem ===PODZIAL===):
             Zadanie 1 - ZESTAWIENIE PRZEDMIARÓW (CZYSTA LISTA DO WYDRUKU NA BUDOWĘ):
-            Stwórz WYSOKO SZCZEGÓŁOWĄ i rozbisaną listę wszystkich odczytanych z projektu ilości (bez podawania żadnych cen). Każda kategoria MUSI być rozbita na kondygnacje i elementy składowe (np. ściany nośne osobno na parter, osobno na piętro/poddasze; fundamenty osobno na ławy i ściany fundamentowe; stropy osobno na płytę i wieńce; szalunki osobno na fundamenty, stropy, wieńce i schody itp.).
-            Musi ona zawierać szczegółowy rozpis dla:
-            - Fundamenty (ławy fundamentowe w m3/mb oraz ściany fundamentowe w m2)
+            Stwórz szczegółową tabelę przedmiarową, rozbitą na kondygnacje i podkategorie:
+            - Fundamenty (ławy w m3, ściany fundamentowe w m2)
             - Ściany nośne (parter w m2, piętro/poddasze w m2)
             - Ściany działowe (parter w m2, piętro/poddasze w m2)
-            - Stropy (żelbetowe monolitowe / gęstożebrowe - rozpisane na powierzchnię m2 i kubaturę betonowania m3)
-            - Konstrukcja dachu i pokrycie (m2)
-            - Stal zbrojeniowa (rozbita na poszczególne elementy lub średnice w tonach)
-            - Beton towarowy (rozbity na fundamenty, chudziak, stropy, wieńce, schody w m3)
-            - Szalunki (rozbity na fundamenty, stropy, wieńce, słupy w m2)
-            - Schody żelbetowe (komplety z rozbiciem na bieg parter/piętro)
-            - Słupy żelbetowe (mb z podziałem na kondygnacje)
-            - Kominy systemowe (mb z podziałem na kanały/typ)
-            
-            BARDZO WAŻNA ZASADA DOTYCZĄCA ŚCIAN: Licząc metry kwadratowe ścian, ODLICZAJ (wybijaj) TYLKO te otwory (okna i drzwi), których powierzchnia jednostkowa wynosi POWYŻEJ 5 m2. Mniejsze całkowicie zignoruj i wlicz do pełnej powierzchni ściany.
+            - Stropy (płyta stropowa w m2, beton m3)
+            - Dach (więźba i pokrycie w m2)
+            - Stal zbrojeniowa (w podziale na średnice w tonach)
+            - Beton towarowy (w podziale na elementy w m3)
+            - Szalunki (w podziale na elementy w m2)
+            - Schody żelbetowe (komplety)
+            - Słupy żelbetowe (mb)
+            - Kominy systemowe (mb)
+            UWAGA DOTYCZĄCE ŚCIAN: Licząc metry kwadratowe ścian, ODLICZAJ (wybijaj) TYLKO te otwory, których powierzchnia wynosi POWYŻEJ 5 m2. Mniejsze całkowicie zignoruj i wlicz do pełnej ściany.
 
             ===PODZIAL===
             
             Część 2 (między pierwszym a drugim znacznikiem ===PODZIAL===):
             Zadanie 2 - HARMONOGRAM PRAC (DLA EKIPY - PRZEWIDZIANY NA {ekipa} PRACOWNIKÓW):
-            Stwórz szczegółowy, dniowy harmonogram prac budowlanych dla ekipy liczącej dokładnie {ekipa} pracowników (zakładając 8-godzinny dzień pracy). Rozpisz kolejno etapy: fundamenty, izolacje, ściany nośne parteru, strop, ściany nośne piętra/poddasza, konstrukcja dachu i pokrycie, kominy oraz schody i słupy. Podaj szacowaną liczbę dni roboczych dla każdego etapu oraz łączny czas trwania inwestycji.
+            Stwórz szczegółowy harmonogram prac (w formie tabeli lub czytelnej listy) dla ekipy liczącej dokładnie {ekipa} pracowników (8h/dzień). Rozpisz etapy: fundamenty, izolacje, ściany nośne parteru, strop, ściany piętra, konstrukcja dachu, kominy, schody i słupy. Podaj liczbę dni roboczych dla każdego etapu oraz łączny czas.
 
             ===PODZIAL===
             
             Część 3 (po drugim znaczniku ===PODZIAL=== - dla klienta):
-            Zadanie 3 - ROBOCIZNA (SZCZEGÓŁOWY ROZPIS):
+            Zadanie 3 - ROBOCIZNA (W FORMIE SZCZEGÓŁOWEJ TABELI):
             Stawki bazowe: Zbrojenie: {c['cena_stal']} PLN/t, Betonowanie: {c['cena_beton']} PLN/m3, Ściany nośne: {c['cena_mur_nosne']} PLN/m2, Ściany działowe: {c['cena_mur_dzialowe']} PLN/m2, Szalowanie: {c['cena_szalunki']} PLN/m2, Dach: {c['cena_dach']} PLN/m2, Schody żelbetowe: {c['cena_schody']} PLN/komplet, Słupy żelbetowe: {c['cena_slupy']} PLN/mb, Kominy systemowe: {c['cena_kominy']} PLN/mb.
-            Pokaż koszty w rozbiciu na każdy szczegółowy element (z uwzględnieniem parteru, piętra itp.). Przemnóż wynik całości robocizny przez {mnoznik} i na koniec dodaj {marza}% marży wykonawcy.
+            Przedstaw koszty robocizny w tabeli z kolumnami: Element robót | Ilość | Jedn. | Cena bazowa | Wartość bazowa. Następnie przemnóż całość przez {mnoznik} i dolicz {marza}% marży wykonawcy.
             
-            Zadanie 4 - MATERIAŁY (SZCZEGÓŁOWY ROZPIS):
+            Zadanie 4 - MATERIAŁY (W FORMIE SZCZEGÓŁOWEJ TABELI):
             Stawki bazowe: Stal: {c['mat_stal']} PLN/t, Beton: {c['mat_beton']} PLN/m3, Ściany nośne: {c['mat_mur_nosne']} PLN/m2, Ściany działowe: {c['mat_mur_dzialowe']} PLN/m2, Szalunki: {c['mat_szalunki']} PLN/m2, Dach: {c['mat_dach']} PLN/m2, Schody żelbetowe: {c['mat_schody']} PLN/komplet, Słupy żelbetowe: {c['mat_slupy']} PLN/mb, Kominy systemowe: {c['mat_kominy']} PLN/mb.
-            Pokaż szczegółowy podział kosztów materiałowych i przemnóż je przez {mnoznik}.
+            Przedstaw koszty materiałów w tabeli z kolumnami: Materiał | Ilość | Jedn. | Cena bazowa | Wartość bazowa. Przemnóż wynik przez {mnoznik}.
             
             Zadanie 5 - TRANSZE PŁATNOŚCI:
-            Podziel prace na etapy. W każdym etapie wyraźnie rozbij: ile to ZALICZKA NA MATERIAŁ, a ile ZAPŁATA ZA ROBOCIZNĘ.
+            Podziel prace na etapy w czytelnej tabeli transz (Etap robót | Zaliczka na materiał | Robocizna | Suma transzy).
             
             Zadanie 6 - SYMULACJA SZANS AKCEPTACJI I WIDEŁKI CENOWE ROBOCIZNY:
-            Oceń procentową szansę na akceptację tej oferty **WYŁĄCZNIE NA PODSTAWIE KWOTY ROBOCIZNY** (z uwzględnieniem Twojej marży wykonawcy). Zrób symulację widełek cenowych wyłącznie dla wartości robocizny: -5%, +5%, +10%, +20% z uzasadnieniem rynkowym dla regionu.
+            Oceń procentową szansę na akceptację oferty **WYŁĄCZNIE NA PODSTAWIE KWOTY ROBOCIZNY** (z marżą). Przygotuj tabelę symulacji widełek robocizny: Wariant (-5%, Bazowy, +5%, +10%, +20%) | Kwota robocizny | Szansa akceptacji (%) | Uzasadnienie rynkowe.
             """
 
             zawartosc = pliki_do_ai + [instrukcja]
