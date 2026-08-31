@@ -6,6 +6,7 @@ import requests
 import json
 import sqlite3
 import time
+import textwrap
 from datetime import datetime
 from fpdf import FPDF
 
@@ -92,10 +93,9 @@ def czysc_tekst_dla_pdf(tekst):
                '•': '-', '—': '-', '–': '-'}
     for pl, en in polskie.items():
         tekst = tekst.replace(pl, en)
-    # Usuwamy wszelkie pozostałe znaki spoza zakresu standardowego ASCII, żeby uniknąć błędów kodowania
     return tekst.encode('ascii', 'ignore').decode('ascii')
 
-# --- Generator PDF w orientacji poziomej odporny na błędy kodowania ---
+# --- Generator PDF odporny na błędy układu (z twardym łamaniem wierszy) ---
 def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM PRAC SSO"):
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.add_page()
@@ -123,7 +123,11 @@ def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM
     
     for line in tekst_raportu.split('\n'):
         line_str = line.strip()
-        if not line_str or line_str.startswith('---'):
+        if not line_str:
+            continue
+            
+        # Brutalne wycięcie technicznych kresek formatowania Markdown (rozwiązuje błąd horizontal space)
+        if not line_str.replace('|', '').replace('-', '').replace(':', '').replace(' ', ''):
             continue
         
         czysta_linia = line_str.replace('**', '').replace('##', '').replace('#', '')
@@ -134,12 +138,13 @@ def generuj_pdf(tekst_raportu, sciezka_logo=None, tytul="KOSZTORYS I HARMONOGRAM
                 continue
             czysta_linia = "  - " + " | ".join(elementy)
         else:
-            czysta_linia = "- " + czysta_linia if not czysta_linia.startswith('-') else czysta_linia
+            if not czysta_linia.startswith('-') and not czysta_linia.startswith('•'):
+                czysta_linia = "- " + czysta_linia
 
-        if len(czysta_linia) > 160:
-            czysta_linia = czysta_linia[:160] + "..."
-            
-        pdf.multi_cell(0, 5, txt=czysc_tekst_dla_pdf(czysta_linia))
+        # Twarde łamanie długich tekstów na max 130 znaków, aby uniknąć błędów renderowania PDF
+        zawiniete_linie = textwrap.wrap(czysta_linia, width=130, break_long_words=True)
+        for zl in zawiniete_linie:
+            pdf.multi_cell(0, 5, txt=czysc_tekst_dla_pdf(zl))
         
     pdf_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     pdf.output(pdf_file.name)
